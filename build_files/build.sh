@@ -3,20 +3,19 @@ set -ouex pipefail
 
 ### Install packages
 
-# this installs a package from fedora repos
-dnf5 install -y tmux
+# Packages can be installed from any enabled yum repo on the image.
+# RPMfusion repos are available by default in ublue main images
+# List of rpmfusion packages can be found here:
+# https://mirrors.rpmfusion.org/mirrorlist?path=free/fedora/updates/44/x86_64/repoview/index.html&protocol=https&redirect=1
 
-# Install Broadcom BCM4360 Wi-Fi driver from RPMFusion nonfree
-# RPMFusion free is already enabled in ublue base images; add nonfree for broadcom-wl
+# Enable RPMFusion free and nonfree repos
+# (not pre-enabled on vanilla Fedora Silverblue unlike Bluefin)
 dnf5 install -y \
+    "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm" \
     "https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm"
 
-dnf5 install -y broadcom-wl
-
-# Install FaceTime HD camera driver (MacBook)
-dnf5 -y copr enable mulderje/facetimehd-kmod
-dnf5 install -y facetimehd-kmod
-dnf5 -y copr disable mulderje/facetimehd-kmod
+# this installs a package from fedora repos
+dnf5 install -y tmux
 
 # Install Toshy native dependencies ahead of the installer run
 # (mirroring what setup_toshy.py would install for Fedora)

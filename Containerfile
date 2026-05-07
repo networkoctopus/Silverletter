@@ -4,7 +4,7 @@ COPY build_files /
 
 # Pre-built kmod RPMs from Universal Blue's daily-built akmods images
 # 'common' stream includes wl (broadcom)
-FROM ghcr.io/ublue-os/akmods:main-44 AS akmods-common
+FROM ghcr.io/ublue-os/akmods:common
 
 # Base Image - Fedora Silverblue 44 with GNOME 50
 FROM quay.io/fedora/fedora-silverblue:44

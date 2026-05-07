@@ -19,29 +19,32 @@ dnf5 install -y \
 # this installs a package from fedora repos
 dnf5 install -y tmux
 
-# Install Toshy native dependencies
-dnf5 install -y \
-    cairo-devel \
-    cairo-gobject-devel \
-    dbus \
-    dbus-devel \
-    evtest \
-    gcc \
-    git \
-    gobject-introspection-devel \
-    libappindicator-gtk3 \
-    libinput-utils \
-    libjpeg-turbo-devel \
-    libnotify \
-    libxkbcommon-devel \
-    python3-dbus \
-    python3-devel \
-    python3-pip \
-    python3-tkinter \
-    systemd-devel \
-    wayland-devel \
-    xorg-x11-server-utils \
-    zenity
+# Install Toshy native dependencies - extracted dynamically from upstream source
+TOSHY_TMP=$(mktemp -d)
+git clone --depth=1 https://github.com/RedBearAK/Toshy.git "$TOSHY_TMP/toshy"
+
+TOSHY_PKGS=$(python3 -c "
+import ast, re, sys
+
+with open('$TOSHY_TMP/toshy/setup_toshy.py') as f:
+    content = f.read()
+
+match = re.search(r\"'fedora-based'\s*:\s*(\[.*?\])\", content, re.DOTALL)
+if not match:
+    sys.exit(1)
+
+pkgs = ast.literal_eval(match.group(1))
+print(' '.join(pkgs))
+")
+
+if [[ -z "$TOSHY_PKGS" ]]; then
+    echo "ERROR: Failed to extract Toshy package list from upstream source" >&2
+    exit 1
+fi
+
+dnf5 install -y --skip-unavailable $TOSHY_PKGS
+
+rm -rf "$TOSHY_TMP"
 
 # Use a COPR Example:
 #

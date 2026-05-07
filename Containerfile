@@ -32,12 +32,19 @@ RUN --mount=type=cache,dst=/var/cache \
     /tmp/akmods-common/rpms/kmods/kmod-wl*.rpm && \
     rm -rf /tmp/akmods-common /run/akmods /run/dnf
 
-## facetimehd: installed via COPR in build.sh (akmods-extra image no longer publicly published)
+## facetimehd: build kmod during image build using akmodsbuild
 RUN --mount=type=cache,dst=/var/cache \
     --mount=type=cache,dst=/var/log \
     dnf5 -y copr enable mulderje/facetimehd-kmod && \
-    dnf5 install -y --setopt=tsflags=noscripts facetimehd-kmod && \
-    dnf5 -y copr disable mulderje/facetimehd-kmod
+    dnf5 install -y --setopt=tsflags=noscripts facetimehd-kmod facetimehd facetimehd-firmware && \
+    dnf5 -y copr disable mulderje/facetimehd-kmod && \
+    echo "=== Builder kernel: $(uname -r) ===" && \
+    echo "=== Target kernel headers: $(ls /usr/src/kernels/) ===" && \
+    KVER=$(ls /usr/src/kernels/) && \
+    su -s /bin/bash -c "akmodsbuild --kernels ${KVER} /usr/src/akmods/facetimehd-kmod.latest" akmodsbuild && \
+    find /tmp -name "kmod-facetimehd*.rpm" && \
+    dnf5 install -y $(find /tmp -name "kmod-facetimehd*.rpm") && \
+    akmods --force 2>/dev/null || true
 
 ### MODIFICATIONS
 COPY --from=ctx /usr/local/bin/toshy-first-login-setup.sh /usr/libexec/toshy-first-login-setup.sh

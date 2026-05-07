@@ -2,12 +2,7 @@
 FROM scratch AS ctx
 COPY build_files /
 
-# Pre-built kmod RPMs from Universal Blue's daily-built akmods images
-# 'common' stream includes wl (broadcom)
-FROM ghcr.io/ublue-os/akmods:common
-
-# Base Image - Fedora Silverblue 44 with GNOME 50
-FROM quay.io/fedora/fedora-silverblue:44
+FROM ghcr.io/ublue-os/silverblue-main:44
 ## Other possible base images include:
 # FROM quay.io/fedora/fedora-silverblue:latest  (tracks latest stable)
 # FROM ghcr.io/ublue-os/bluefin:stable
@@ -29,11 +24,10 @@ FROM quay.io/fedora/fedora-silverblue:44
 ### KMODS
 ## wl (broadcom): installed via ublue akmods pre-built image (avoids akmod-wl root build failure)
 ## facetimehd: installed via COPR in build.sh (akmods-extra image no longer publicly published)
-COPY --from=akmods-common /rpms/ /tmp/rpms/
-
+COPY --from=ghcr.io/ublue-os/akmods:coreos-testing-44 / /tmp/akmods-common
+RUN find /tmp/akmods-common
 RUN dnf install -y /tmp/rpms/ublue-os/ublue-os-akmods*.rpm && \
-    dnf install -y /tmp/rpms/kmods/kmod-wl*.rpm && \
-    rm -rf /tmp/rpms
+    dnf install -y /tmp/rpms/kmods/kmod-wl*.rpm
 
 ### MODIFICATIONS
 ## make modifications desired in your image and install packages by modifying the build.sh script

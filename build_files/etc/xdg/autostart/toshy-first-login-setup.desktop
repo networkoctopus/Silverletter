@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Name=Toshy Setup
-Exec=gnome-terminal --title="Toshy First-Time Setup" -- /usr/local/bin/toshy-first-login-setup.sh
+Exec=gnome-terminal --title="Toshy First-Time Setup" -- /usr/libexec/toshy-first-login-setup.sh
 Terminal=false
 X-GNOME-Autostart-enabled=true
 NoDisplay=true

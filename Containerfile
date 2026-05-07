@@ -40,7 +40,7 @@ RUN --mount=type=cache,dst=/var/cache \
     dnf5 -y copr disable mulderje/facetimehd-kmod
 
 ### MODIFICATIONS
-COPY --from=ctx /usr/local/bin/toshy-first-login-setup.sh /usr/local/bin/toshy-first-login-setup.sh
+COPY --from=ctx /usr/local/bin/toshy-first-login-setup.sh /usr/libexec/toshy-first-login-setup.sh
 COPY --from=ctx /etc/xdg/autostart/toshy-first-login-setup.desktop /etc/xdg/autostart/toshy-first-login-setup.desktop
 
 RUN chmod +x /usr/local/bin/toshy-first-login-setup.sh

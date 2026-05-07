@@ -36,18 +36,16 @@ RUN dnf5 -y copr enable mulderje/facetimehd-kmod && \
     dnf5 -y copr disable mulderje/facetimehd-kmod
 
 ### MODIFICATIONS
-## make modifications desired in your image and install packages by modifying the build.sh script
-## the following RUN directive does all the things required to run "build.sh" as recommended.
+COPY --from=ctx /usr/local/bin/toshy-first-login-setup.sh /usr/local/bin/toshy-first-login-setup.sh
+COPY --from=ctx /etc/xdg/autostart/toshy-first-login-setup.desktop /etc/xdg/autostart/toshy-first-login-setup.desktop
+
+RUN chmod +x /usr/local/bin/toshy-first-login-setup.sh
+
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=cache,dst=/var/cache \
     --mount=type=cache,dst=/var/log \
     --mount=type=tmpfs,dst=/tmp \
-    /ctx/build.sh && \
-    chmod +x /usr/local/bin/toshy-first-login-setup.sh
-
-
-## make toshy login script executable 
-RUN chmod +x /usr/local/bin/toshy-first-login-setup.sh
+    /ctx/build.sh
 
 ### LINTING
 ## Verify final image and contents are correct.

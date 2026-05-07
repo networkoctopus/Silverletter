@@ -19,6 +19,30 @@ dnf5 install -y \
 # this installs a package from fedora repos
 #dnf5 install -y tmux
 
+# Install Toshy native dependencies
+dnf5 install -y --skip-unavailable \
+    cairo-devel \
+    cairo-gobject-devel \
+    dbus \
+    dbus-devel \
+    evtest \
+    gcc \
+    git \
+    gobject-introspection-devel \
+    libappindicator-gtk3 \
+    libinput-utils \
+    libjpeg-turbo-devel \
+    libnotify \
+    libxkbcommon-devel \
+    python3-dbus \
+    python3-devel \
+    python3-pip \
+    python3-tkinter \
+    systemd-devel \
+    wayland-devel \
+    xorg-x11-utils \
+    zenity
+
 # Install Toshy native dependencies - extracted dynamically from upstream source
 #TOSHY_TMP=$(mktemp -d)
 #git clone --depth=1 https://github.com/RedBearAK/Toshy.git "$TOSHY_TMP/toshy"

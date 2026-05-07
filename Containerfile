@@ -37,7 +37,7 @@ RUN --mount=type=cache,dst=/var/cache \
     --mount=type=cache,dst=/var/log \
     dnf5 -y copr enable mulderje/facetimehd-kmod && \
     dnf5 install -y --setopt=tsflags=noscripts facetimehd-kmod && \
-    dnf5 mark install facetimehd facetimehd-firmware kmod-facetimehd && \
+    dnf5 -y mark user facetimehd facetimehd-firmware kmod-facetimehd && \
     dnf5 -y copr disable mulderje/facetimehd-kmod && \
     dnf5 remove -y akmod-facetimehd akmods kmodtool && \
     dnf5 autoremove -y

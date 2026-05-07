@@ -29,11 +29,17 @@ import ast, re, sys
 with open('$TOSHY_TMP/toshy/setup_toshy.py') as f:
     content = f.read()
 
-match = re.search(r\"'fedora-based'\s*:\s*(\[.*?\])\", content, re.DOTALL)
+match = re.search(r'pkg_groups_map\s*=\s*(\{.*?\n\})', content, re.DOTALL)
 if not match:
+    print('ERROR: Could not find pkg_groups_map', file=sys.stderr)
     sys.exit(1)
 
-pkgs = ast.literal_eval(match.group(1))
+pkg_groups_map = ast.literal_eval(match.group(1))
+pkgs = pkg_groups_map.get('fedora-based')
+if not pkgs:
+    print('ERROR: Could not find fedora-based key', file=sys.stderr)
+    sys.exit(1)
+
 print(' '.join(pkgs))
 ")
 
@@ -42,6 +48,7 @@ if [[ -z "$TOSHY_PKGS" ]]; then
     exit 1
 fi
 
+echo "Installing Toshy deps: $TOSHY_PKGS"
 dnf5 install -y --skip-unavailable $TOSHY_PKGS
 
 rm -rf "$TOSHY_TMP"

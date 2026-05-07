@@ -32,7 +32,7 @@ RUN dnf install -y \
 
 ## facetimehd: installed via COPR in build.sh (akmods-extra image no longer publicly published)
 RUN dnf5 -y copr enable mulderje/facetimehd-kmod && \
-    dnf5 install -y facetimehd-kmod --exclude=akmod-facetimehd && \
+    dnf5 install -y --setopt=tsflags=noscripts facetimehd-kmod && \
     dnf5 -y copr disable mulderje/facetimehd-kmod
 
 ### MODIFICATIONS

@@ -12,8 +12,8 @@ dnf5 install -y \
 # Install FaceTime HD camera driver (MacBook)
 # facetimehd-kmod is a plain pre-built kmod RPM, not an akmod,
 # so it installs cleanly as root without triggering any build scriptlets
-dnf5 -y copr enable mulderje/facetimehd-kmod
-dnf5 install -y facetimehd-kmod
+#dnf5 -y copr enable mulderje/facetimehd-kmod
+#dnf5 install -y facetimehd-kmod
 #dnf5 -y copr disable mulderje/facetimehd-kmod
 
 # this installs a package from fedora repos

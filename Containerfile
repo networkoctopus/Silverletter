@@ -24,16 +24,22 @@ FROM ghcr.io/ublue-os/silverblue-main:44
 ### KMODS
 ## wl (broadcom): installed via ublue akmods pre-built image (avoids akmod-wl root build failure)
 COPY --from=ghcr.io/ublue-os/akmods:main-44 / /tmp/akmods-common
-RUN find /tmp/akmods-common
-RUN dnf install -y \
+RUN --mount=type=cache,dst=/var/cache \
+    --mount=type=cache,dst=/var/log \
+    dnf install -y \
     /tmp/akmods-common/rpms/ublue-os/ublue-os-akmods-addons*.rpm \
     /tmp/akmods-common/rpms/common/broadcom-wl*.rpm \
-    /tmp/akmods-common/rpms/kmods/kmod-wl*.rpm
+    /tmp/akmods-common/rpms/kmods/kmod-wl*.rpm && \
+    rm -rf /tmp/akmods-common /run/akmods /run/dnf
 
 ## facetimehd: installed via COPR in build.sh (akmods-extra image no longer publicly published)
-RUN dnf5 -y copr enable mulderje/facetimehd-kmod && \
+RUN --mount=type=cache,dst=/var/cache \
+    --mount=type=cache,dst=/var/log \
+    dnf5 -y copr enable mulderje/facetimehd-kmod && \
     dnf5 install -y --setopt=tsflags=noscripts facetimehd-kmod && \
-    dnf5 -y copr disable mulderje/facetimehd-kmod
+    dnf5 -y copr disable mulderje/facetimehd-kmod && \
+    dnf5 remove -y akmod-facetimehd akmods kmodtool && \
+    dnf5 autoremove -y
 
 ### MODIFICATIONS
 COPY --from=ctx /usr/local/bin/toshy-first-login-setup.sh /usr/local/bin/toshy-first-login-setup.sh

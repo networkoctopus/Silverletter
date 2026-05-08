@@ -38,10 +38,9 @@ RUN --mount=type=cache,dst=/var/cache \
     dnf5 install -y --setopt=tsflags=noscripts facetimehd-kmod facetimehd facetimehd-firmware && \
     dnf5 -y copr disable mulderje/facetimehd-kmod && \
     echo "=== Builder kernel: $(uname -r) ===" && \
-    echo "=== Target kernel headers: $(ls /usr/src/kernels/) ===" && \
-    KVER=$(ls /usr/src/kernels/) && \
-    su -s /bin/bash -c "akmodsbuild --kernels ${KVER} /usr/src/akmods/facetimehd-kmod.latest" akmods && \
-    KMOD_RPM=$(find /tmp -name "kmod-facetimehd*.rpm" | head -1) && \
+    echo "=== Target kernel: $(rpm -q --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}' kernel-devel) ===" && \
+    akmods --force --kernels $(rpm -q --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}' kernel-devel) && \
+    KMOD_RPM=$(find /var/cache/akmods -name "kmod-facetimehd*.rpm" | head -1) && \
     echo "=== Found kmod RPM: ${KMOD_RPM} ===" && \
     dnf5 install -y "${KMOD_RPM}"
 

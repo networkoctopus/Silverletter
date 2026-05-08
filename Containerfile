@@ -31,7 +31,7 @@ RUN --mount=type=cache,dst=/var/cache \
     /tmp/akmods-common/rpms/common/broadcom-wl*.rpm \
     /tmp/akmods-common/rpms/kmods/kmod-wl*.rpm && \
     rm -rf /tmp/akmods-common /run/akmods /run/dnf
-
+## facetimehd
 RUN --mount=type=cache,dst=/var/cache \
     --mount=type=cache,dst=/var/log \
     dnf5 -y copr enable mulderje/facetimehd-kmod && \
@@ -45,10 +45,9 @@ RUN --mount=type=cache,dst=/var/cache \
     dnf5 autoremove -y && \
     rm -rf /var/cache/akmods /run/akmods /run/dnf
 
-### MODIFICATIONS
+### Toshy first login setup
 COPY --from=ctx /usr/libexec/toshy-first-login-setup.sh /usr/libexec/toshy-first-login-setup.sh
 COPY --from=ctx /etc/xdg/autostart/toshy-first-login-setup.desktop /etc/xdg/autostart/toshy-first-login-setup.desktop
-
 RUN chmod +x /usr/libexec/toshy-first-login-setup.sh
 
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \

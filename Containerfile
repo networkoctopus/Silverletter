@@ -32,7 +32,6 @@ RUN --mount=type=cache,dst=/var/cache \
     /tmp/akmods-common/rpms/kmods/kmod-wl*.rpm && \
     rm -rf /tmp/akmods-common /run/akmods /run/dnf
 
-## facetimehd: build kmod during image build using akmodsbuild
 RUN --mount=type=cache,dst=/var/cache \
     --mount=type=cache,dst=/var/log \
     dnf5 -y copr enable mulderje/facetimehd-kmod && \
@@ -41,16 +40,16 @@ RUN --mount=type=cache,dst=/var/cache \
     echo "=== Builder kernel: $(uname -r) ===" && \
     echo "=== Target kernel headers: $(ls /usr/src/kernels/) ===" && \
     KVER=$(ls /usr/src/kernels/) && \
-    su -s /bin/bash -c "akmodsbuild --kernels ${KVER} /usr/src/akmods/facetimehd-kmod.latest" akmodsbuild && \
-    find /tmp -name "kmod-facetimehd*.rpm" && \
-    dnf5 install -y $(find /tmp -name "kmod-facetimehd*.rpm") && \
-    akmods --force 2>/dev/null || true
+    su -s /bin/bash -c "akmodsbuild --kernels ${KVER} /usr/src/akmods/facetimehd-kmod.latest" akmods && \
+    KMOD_RPM=$(find /tmp -name "kmod-facetimehd*.rpm" | head -1) && \
+    echo "=== Found kmod RPM: ${KMOD_RPM} ===" && \
+    dnf5 install -y "${KMOD_RPM}"
 
 ### MODIFICATIONS
-COPY --from=ctx /usr/local/bin/toshy-first-login-setup.sh /usr/libexec/toshy-first-login-setup.sh
+COPY --from=ctx /usr/libexec/toshy-first-login-setup.sh /usr/libexec/toshy-first-login-setup.sh
 COPY --from=ctx /etc/xdg/autostart/toshy-first-login-setup.desktop /etc/xdg/autostart/toshy-first-login-setup.desktop
 
-RUN chmod +x /usr/local/bin/toshy-first-login-setup.sh
+RUN chmod +x /usr/libexec/toshy-first-login-setup.sh
 
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=cache,dst=/var/cache \

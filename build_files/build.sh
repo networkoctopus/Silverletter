@@ -36,6 +36,9 @@ dnf5 install -y --skip-unavailable \
     xorg-x11-utils \
     zenity
 
+# Install theme native dependencies
+dnf5 install -y sassc glib2-devel
+
 #cleanup
 dnf5 autoremove -y && \
 rm -rf /run/dnf

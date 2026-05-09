@@ -1,0 +1,21 @@
+[Unit]
+Description=Toshy First-Login Setup
+# Skip entirely if already done
+ConditionPathExists=!%h/.config/toshy/.image-setup-done
+# Must wait for the graphical session to be ready
+After=graphical-session.target
+Requires=graphical-session.target
+
+[Service]
+Type=oneshot
+# The launcher script exits immediately after opening the terminal,
+# so this service completes quickly. RemainAfterExit keeps it "active"
+# so systemd doesn't retry it within the same session.
+RemainAfterExit=yes
+ExecStart=/usr/libexec/toshy-first-login-launch.sh
+# No timeout needed — the launcher itself exits fast
+TimeoutStartSec=30
+Restart=no
+
+[Install]
+WantedBy=graphical-session.target

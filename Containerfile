@@ -46,9 +46,21 @@ RUN --mount=type=cache,dst=/var/cache \
     rm -rf /var/cache/akmods /run/akmods /run/dnf
 
 ### Toshy first login setup
-COPY --from=ctx /usr/libexec/toshy-first-login-setup.sh /usr/libexec/toshy-first-login-setup.sh
-COPY --from=ctx /etc/xdg/autostart/toshy-first-login-setup.desktop /etc/xdg/autostart/toshy-first-login-setup.desktop
-RUN chmod +x /usr/libexec/toshy-first-login-setup.sh
+COPY --from=ctx /usr/libexec/toshy-first-login-setup.sh   /usr/libexec/toshy-first-login-setup.sh
+COPY --from=ctx /usr/libexec/toshy-first-login-launch.sh  /usr/libexec/toshy-first-login-launch.sh
+COPY --from=ctx /usr/lib/systemd/user/toshy-first-login-setup.service \
+                /usr/lib/systemd/user/toshy-first-login-setup.service
+
+RUN chmod +x /usr/libexec/toshy-first-login-setup.sh \
+             /usr/libexec/toshy-first-login-launch.sh \
+ && mkdir -p /usr/lib/systemd/user/graphical-session.target.wants \
+ && ln -sf /usr/lib/systemd/user/toshy-first-login-setup.service \
+           /usr/lib/systemd/user/graphical-session.target.wants/toshy-first-login-setup.service
+
+### Stop gnome software from trying to update packages and causing conflicts with bootc's deployment process. This is done by removing the dnf5 plugin for gnome software, and masking packagekit to prevent it from being started as a dependency of the plugin.
+RUN rm -f /usr/lib64/gnome-software/plugins-*/libgs_plugin_dnf5.so && \
+    systemctl mask packagekit && \
+    echo "gnome-software dnf5 plugin removed"
 
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=cache,dst=/var/cache \

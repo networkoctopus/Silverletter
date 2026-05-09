@@ -9,8 +9,8 @@ set -ouex pipefail
 #    "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm" \
 #    "https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm"
 
-# Install intel gpu tools to check hardware acceleration is working correctly. 
-dnf5 install -y intel-gpu-tools
+# Install some useful tools for debugging and profiling gpu and power usage
+dnf5 install -y intel-gpu-tools powertop
 
 # Install Toshy native dependencies
 dnf5 install -y --skip-unavailable \

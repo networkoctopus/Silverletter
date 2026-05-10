@@ -1,7 +1,6 @@
 [Unit]
 Description=ASPM tuning script
 After=multi-user.target systemd-udev-settle.service
-Wants=systemd-udev-settle.service
 
 [Service]
 Type=oneshot

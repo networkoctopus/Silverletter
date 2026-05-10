@@ -4,6 +4,7 @@
 ROOT_COMPLEXES=("00:1c.0" "00:1c.4")
 ENDPOINT="02:00.0"
 ASPM_SETTING=3
+VERIFY_DELAY=10   # seconds to wait after first pass before verification re-check (0 to disable)
 # ======================
 
 GREEN="\033[01;32m"
@@ -23,8 +24,7 @@ if [[ $(id -u) != 0 ]]; then
 fi
 
 device_present() {
-    /usr/bin/lspci | grep -q "$1"
-    return $?
+    [[ -e "/sys/bus/pci/devices/0000:$1" ]]
 }
 
 find_aspm_byte_address() {
@@ -98,13 +98,24 @@ enable_aspm_byte() {
 
 # ===== RUN =====
 
-echo -e "${CYAN}Root complexes:${NORMAL}"
-for ROOT in "${ROOT_COMPLEXES[@]}"; do
-    echo -e "${YELLOW}Processing $ROOT${NORMAL}"
-    enable_aspm_byte $ROOT
-    echo
-done
+run_pass() {
+    local PASS_LABEL=$1
+    echo -e "${CYAN}Root complexes: ${PASS_LABEL}${NORMAL}"
+    for ROOT in "${ROOT_COMPLEXES[@]}"; do
+        echo -e "${YELLOW}Processing $ROOT${NORMAL}"
+        enable_aspm_byte $ROOT
+        echo
+    done
 
-echo -e "${CYAN}Endpoint:${NORMAL}"
-enable_aspm_byte $ENDPOINT
-echo
+    echo -e "${CYAN}Endpoint: ${PASS_LABEL}${NORMAL}"
+    enable_aspm_byte $ENDPOINT
+    echo
+}
+
+run_pass "(pass 1)"
+
+if [[ $VERIFY_DELAY -gt 0 ]]; then
+    echo -e "${YELLOW}Waiting ${VERIFY_DELAY}s before verification pass...${NORMAL}"
+    sleep $VERIFY_DELAY
+    run_pass "(verification pass)"
+fi

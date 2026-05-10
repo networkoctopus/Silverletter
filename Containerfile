@@ -90,6 +90,10 @@ RUN systemctl enable aspm-tune.service
 COPY --from=ctx /power/aspm-tune-resume.service /etc/systemd/system/aspm-tune-resume.service
 RUN systemctl enable aspm-tune-resume.service
 
+### Power audit script to troubleshoot power issues (not enabled by default, can be run manually)
+COPY --from=ctx /power/power-audit.sh /usr/local/bin/power-audit.sh
+RUN chmod +x /usr/local/bin/power-audit.sh
+
 ### Run Build Script
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=cache,dst=/var/cache \

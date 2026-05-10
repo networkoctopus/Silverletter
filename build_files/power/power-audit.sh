@@ -27,6 +27,29 @@ if [[ $(id -u) != 0 ]]; then
     exit 1
 fi
 
+# ─── PRE-FLIGHT CHECKLIST ──────────────────────────────────────────────────
+echo -e "\n${HEADER}╔══════════════════════════════════════════╗${RESET}"
+echo -e "${HEADER}║     MacBook Air Power Audit — Setup      ║${RESET}"
+echo -e "${HEADER}╚══════════════════════════════════════════╝${RESET}"
+echo -e "\nFor accurate power readings, please do the following before continuing:\n"
+echo -e "  \033[01;33m1.\033[00m  Disconnect the charger (must run on battery)"
+echo -e "  \033[01;33m2.\033[00m  Set screen brightness to ~50%"
+echo -e "  \033[01;33m3.\033[00m  Quit all other applications\n"
+
+# Check if already on battery
+if [[ -f /sys/class/power_supply/BAT0/status ]]; then
+    bat_status=$(cat /sys/class/power_supply/BAT0/status)
+    if [[ "$bat_status" == "Discharging" ]]; then
+        echo -e "  \033[01;32m[OK] Charger is disconnected (discharging)\033[00m\n"
+    else
+        echo -e "  \033[01;31m[!!] Charger appears to be connected (status: $bat_status)\033[00m"
+        echo -e "      Please disconnect it for accurate power readings.\n"
+    fi
+fi
+
+read -r -p "Press Enter when ready to begin the audit, or Ctrl+C to cancel... "
+echo ""
+
 echo -e "\n${HEADER}MacBook Air Power Tuning Audit${RESET}"
 echo -e "$(date)"
 echo -e "Kernel: $(uname -r)"
@@ -59,7 +82,7 @@ FILES=(
     "/etc/systemd/system/powertop-autotune.service"
     "/etc/systemd/system/aspm-tune.service"
     "/etc/systemd/system/aspm-tune-resume.service"
-    "/usr/bin/aspm-tune.sh"
+    "/usr/local/bin/aspm-tune.sh"
 )
 
 for f in "${FILES[@]}"; do
@@ -160,17 +183,33 @@ done
 # ─── 6. ASPM STATE ─────────────────────────────────────────────────────────
 header "ASPM Link State"
 
-while IFS= read -r block; do
-    addr=$(echo "$block" | grep -oP '^[0-9a-f:.]+')
-    lnkctl=$(echo "$block" | grep 'LnkCtl:' | grep -oP 'ASPM \S+')
-    lnkcap=$(echo "$block" | grep 'LnkCap:' | grep -oP 'ASPM \S+')
+aspm_enabled=0
+aspm_disabled=0
+current_addr=""
 
-    if echo "$lnkctl" | grep -q 'Disabled'; then
-        warn "$addr — $lnkctl (cap: $lnkcap)"
-    elif echo "$lnkctl" | grep -q 'Enabled'; then
-        pass "$addr — $lnkctl"
+while IFS= read -r line; do
+    if echo "$line" | grep -qP '^[0-9a-f]{2}:[0-9a-f]{2}\.[0-9a-f]'; then
+        current_addr=$(echo "$line" | grep -oP '^[0-9a-f:.]+')
     fi
-done < <(lspci -vv 2>/dev/null | awk '/ASPM/{print $0}' RS=)
+    if echo "$line" | grep -q 'LnkCtl:'; then
+        # Extract everything from ASPM up to the semicolon e.g. "ASPM L0s L1 Enabled"
+        aspm=$(echo "$line" | grep -oP 'ASPM [^;]+' | sed 's/[[:space:]]*$//')
+        if echo "$aspm" | grep -q 'Disabled'; then
+            warn "$current_addr — $aspm"
+            aspm_disabled=$((aspm_disabled+1))
+        elif echo "$aspm" | grep -q 'Enabled'; then
+            pass "$current_addr — $aspm"
+            aspm_enabled=$((aspm_enabled+1))
+        fi
+    fi
+done < <(lspci -vv 2>/dev/null)
+
+info "ASPM enabled: $aspm_enabled devices, disabled: $aspm_disabled devices"
+if [[ $aspm_disabled -eq 0 && $aspm_enabled -gt 0 ]]; then
+    pass "All $aspm_enabled ASPM-capable devices have ASPM enabled"
+elif [[ $aspm_disabled -gt 0 ]]; then
+    warn "$aspm_disabled device(s) have ASPM disabled"
+fi
 
 # ─── 7. PCIe RUNTIME PM ────────────────────────────────────────────────────
 header "PCIe Runtime PM Summary"
@@ -212,16 +251,16 @@ header "CPU Package C-States (5s sample)"
 
 if command -v turbostat &>/dev/null; then
     info "Sampling for 5 seconds..."
-    turbostat --quiet --show Pkg%pc2,Pkg%pc3,Pkg%pc6,Pkg%pc7,PkgWatt --interval 5 --num_iterations 1 2>/dev/null \
+    turbostat --quiet --show Pkg%pc2,Pkg%pc3,Pkg%pc6,PkgWatt --interval 5 --num_iterations 1 2>/dev/null \
         | tail -n +2 | head -5
-    pc7=$(turbostat --quiet --show Pkg%pc7 --interval 5 --num_iterations 1 2>/dev/null \
+    pc6=$(turbostat --quiet --show Pkg%pc6 --interval 5 --num_iterations 1 2>/dev/null \
         | tail -1 | awk '{print $1}')
-    if [[ -n "$pc7" ]]; then
-        pc7_int=${pc7%.*}
-        if (( pc7_int > 0 )); then
-            pass "PC7 residency: ${pc7}%"
+    if [[ -n "$pc6" ]]; then
+        pc6_int=${pc6%.*}
+        if (( pc6_int > 0 )); then
+            pass "PC6 residency: ${pc6}%"
         else
-            warn "PC7 residency: ${pc7}% — may improve after longer idle"
+            warn "PC6 residency: ${pc6}% — may improve after longer idle"
         fi
     fi
 else

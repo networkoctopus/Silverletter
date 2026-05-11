@@ -64,13 +64,13 @@ RUN rm -f /usr/lib64/gnome-software/plugins-*/libgs_plugin_dnf5.so && \
 
 
 ### Power improvements for MacBooks
-### Kernel argument: tell firmware it's not a Mac (better ACPI/Thunderbolt paths)
+### Kernel argument: tell firmware it's not booting macOS (creates linux accessible AHCI paths)
 COPY --from=ctx /power/macbook-power.toml /usr/lib/bootc/kargs.d/macbook-power.toml
 
-### Disable Thunderbolt via modprobe blacklist (initramfs rebuilt at deploy time)
+### Disables loading Thunderbolt driver
 COPY --from=ctx /power/thunderbolt-blacklist.conf /etc/modprobe.d/thunderbolt-blacklist.conf
 
-### Thunderbolt runtime PM udev rule (picked up at first boot)
+### Thunderbolt runtime PM udev rule (turns on power management for Thunderbolt devices)
 COPY --from=ctx /power/99-thunderbolt-pm.rules /etc/udev/rules.d/99-thunderbolt-pm.rules
 
 ### Enable WiFi powersave by default
@@ -80,7 +80,7 @@ COPY --from=ctx /power/default-wifi-powersave-on.conf /etc/NetworkManager/conf.d
 COPY --from=ctx /power/powertop-autotune.service /etc/systemd/system/powertop-autotune.service
 RUN systemctl enable powertop-autotune.service
 
-### ASPM tuning on boot
+### ASPM tuning on boot (forces a couple of stubborn devices to enable ASPM)
 COPY --from=ctx /power/aspm-tune.sh /usr/bin/aspm-tune.sh
 RUN chmod +x /usr/bin/aspm-tune.sh
 COPY --from=ctx /power/aspm-tune.service /etc/systemd/system/aspm-tune.service
@@ -90,9 +90,16 @@ RUN systemctl enable aspm-tune.service
 COPY --from=ctx /power/aspm-tune-resume.service /etc/systemd/system/aspm-tune-resume.service
 RUN systemctl enable aspm-tune-resume.service
 
-### Power audit script to troubleshoot power issues (not enabled by default, can be run manually)
+### Power audit script to troubleshoot power issues (can be run manually)
 COPY --from=ctx /power/power-audit.sh /usr/bin/power-audit.sh
 RUN chmod +x /usr/bin/power-audit.sh
+
+##FIXES
+##After S3 resume the intel_backlight driver may leave brightness at 0.
+##This hook saves the brightness before sleep and restores it after wake.
+COPY --from=ctx /fixes/restore-backlight.sh /usr/lib/systemd/system-sleep/restore-backlight.sh
+RUN chmod +x /usr/lib/systemd/system-sleep/restore-backlight.sh
+
 
 ### Run Build Script
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \

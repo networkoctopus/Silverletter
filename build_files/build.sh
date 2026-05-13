@@ -12,7 +12,19 @@ set -ouex pipefail
 # Install some useful tools for debugging and profiling gpu and power usage
 dnf5 install -y intel-gpu-tools powertop
 # Enable powertop --autotune on startup
-RUN systemctl enable powertop.service
+systemctl enable powertop.service
+
+# ── Install mbpfan ──
+dnf5 install -y gcc make
+echo "▸ Installing mbpfan v2.4.0 from source"
+git clone --depth 1 --branch v2.4.0 https://github.com/linux-on-mac/mbpfan.git /tmp/mbpfan
+cd /tmp/mbpfan
+make
+make install
+# Ensure service file is copied to the correct location for systemd
+cp -v mbpfan.service /usr/lib/systemd/system/mbpfan.service
+cd /
+rm -rf /tmp/mbpfan
 
 # Install Toshy native dependencies
 dnf5 install -y --skip-unavailable \

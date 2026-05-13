@@ -68,26 +68,26 @@ RUN rm -f /usr/lib64/gnome-software/plugins-*/libgs_plugin_dnf5.so && \
 COPY --from=ctx /power/macbook-power.toml /usr/lib/bootc/kargs.d/macbook-power.toml
 
 ### Disables loading Thunderbolt driver
-COPY --from=ctx /power/thunderbolt-blacklist.conf /etc/modprobe.d/thunderbolt-blacklist.conf
+COPY --from=ctx /power/thunderbolt-blacklist.conf /usr/lib/modprobe.d/thunderbolt-blacklist.conf
 
 ### Thunderbolt runtime PM udev rule (turns on power management for Thunderbolt devices)
-COPY --from=ctx /power/99-thunderbolt-pm.rules /etc/udev/rules.d/99-thunderbolt-pm.rules
+COPY --from=ctx /power/99-thunderbolt-pm.rules /usr/lib/udev/rules.d/99-thunderbolt-pm.rules
 
 ### Enable WiFi powersave by default
-COPY --from=ctx /power/default-wifi-powersave-on.conf /etc/NetworkManager/conf.d/default-wifi-powersave-on.conf
+COPY --from=ctx /power/default-wifi-powersave-on.conf /usr/lib/NetworkManager/conf.d/default-wifi-powersave-on.conf
 
 ### powertop autotune on boot
-COPY --from=ctx /power/powertop-autotune.service /etc/systemd/system/powertop-autotune.service
+COPY --from=ctx /power/powertop-autotune.service /usr/lib/systemd/system/powertop-autotune.service
 RUN systemctl enable powertop-autotune.service
 
 ### ASPM tuning on boot (forces a couple of stubborn devices to enable ASPM)
 COPY --from=ctx /power/aspm-tune.sh /usr/bin/aspm-tune.sh
 RUN chmod +x /usr/bin/aspm-tune.sh
-COPY --from=ctx /power/aspm-tune.service /etc/systemd/system/aspm-tune.service
+COPY --from=ctx /power/aspm-tune.service /usr/lib/systemd/system/aspm-tune.service
 RUN systemctl enable aspm-tune.service
 
 ### ASPM re-tuning on resume
-COPY --from=ctx /power/aspm-tune-resume.service /etc/systemd/system/aspm-tune-resume.service
+COPY --from=ctx /power/aspm-tune-resume.service /usr/lib/systemd/system/aspm-tune-resume.service
 RUN systemctl enable aspm-tune-resume.service
 
 ### Power audit script to troubleshoot power issues (can be run manually)

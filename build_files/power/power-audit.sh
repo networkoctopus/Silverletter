@@ -76,13 +76,13 @@ fi
 header "Config Files"
 
 FILES=(
-    "/etc/modprobe.d/thunderbolt-blacklist.conf"
-    "/etc/udev/rules.d/99-thunderbolt-pm.rules"
-    "/etc/NetworkManager/conf.d/default-wifi-powersave-on.conf"
-    "/etc/systemd/system/powertop-autotune.service"
-    "/etc/systemd/system/aspm-tune.service"
-    "/etc/systemd/system/aspm-tune-resume.service"
-    "/usr/local/bin/aspm-tune.sh"
+    "/usr/lib/modprobe.d/thunderbolt-blacklist.conf"
+    "/usr/lib/udev/rules.d/99-thunderbolt-pm.rules"
+    "/usr/lib/NetworkManager/conf.d/default-wifi-powersave-on.conf"
+    "/usr/lib/systemd/system/powertop-autotune.service"
+    "/usr/lib/systemd/system/aspm-tune.service"
+    "/usr/lib/systemd/system/aspm-tune-resume.service"
+    "/usr/bin/aspm-tune.sh"
 )
 
 for f in "${FILES[@]}"; do
@@ -102,9 +102,9 @@ else
     pass "thunderbolt module not loaded"
 fi
 
-if grep -q 'install thunderbolt /bin/false' /etc/modprobe.d/thunderbolt-blacklist.conf 2>/dev/null; then
+if grep -q 'install thunderbolt /bin/false' /usr/lib/modprobe.d/thunderbolt-blacklist.conf 2>/dev/null; then
     pass "Hard block (install /bin/false) present"
-elif grep -q 'blacklist thunderbolt' /etc/modprobe.d/thunderbolt-blacklist.conf 2>/dev/null; then
+elif grep -q 'blacklist thunderbolt' /usr/lib/modprobe.d/thunderbolt-blacklist.conf 2>/dev/null; then
     warn "Only soft blacklist present — consider adding: install thunderbolt /bin/false"
 else
     fail "thunderbolt-blacklist.conf missing or empty"
@@ -130,8 +130,8 @@ done
 # ─── 4. WIFI POWERSAVE ─────────────────────────────────────────────────────
 header "WiFi Powersave"
 
-if [[ -f /etc/NetworkManager/conf.d/default-wifi-powersave-on.conf ]]; then
-    content=$(cat /etc/NetworkManager/conf.d/default-wifi-powersave-on.conf)
+if [[ -f /usr/lib/NetworkManager/conf.d/default-wifi-powersave-on.conf ]]; then
+    content=$(cat /usr/lib/NetworkManager/conf.d/default-wifi-powersave-on.conf)
     if echo "$content" | grep -q 'wifi.powersave.*[23]'; then
         pass "WiFi powersave config present and set correctly"
         info "Content: $content"
@@ -268,7 +268,8 @@ else
 fi
 
 # ─── 9. POWER DRAW ─────────────────────────────────────────────────────────
-header "Current Power Draw"
+header "Current Power Draw - waiting 10s for stable reading..."
+sleep 10
 
 if [[ -f /sys/class/power_supply/BAT0/power_now ]]; then
     power_uw=$(cat /sys/class/power_supply/BAT0/power_now)
@@ -278,7 +279,7 @@ if [[ -f /sys/class/power_supply/BAT0/power_now ]]; then
     if (( power_uw > 0 )); then
         if (( $(echo "$power_w < 5.0" | bc -l) )); then
             pass "Power draw: ${power_w}W (excellent)"
-        elif (( $(echo "$power_w < 7.0" | bc -l) )); then
+        elif (( $(echo "$power_w < 6.0" | bc -l) )); then
             warn "Power draw: ${power_w}W (acceptable, but room to improve)"
         else
             fail "Power draw: ${power_w}W (high — check what's keeping devices active)"

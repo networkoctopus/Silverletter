@@ -65,7 +65,7 @@ RUN rm -f /usr/lib64/gnome-software/plugins-*/libgs_plugin_dnf5.so && \
 
 ### Power improvements for MacBooks
 ### Kernel argument: tell firmware it's not booting macOS (creates linux accessible AHCI paths)
-COPY --from=ctx /power/macbook-power.toml /usr/lib/bootc/kargs.d/macbook-power.toml
+COPY --from=ctx /power/im-not-macos.toml /usr/lib/bootc/kargs.d/im-not-macos.toml
 
 ### Disables loading Thunderbolt driver
 COPY --from=ctx /power/thunderbolt-blacklist.conf /usr/lib/modprobe.d/thunderbolt-blacklist.conf
@@ -77,8 +77,10 @@ COPY --from=ctx /power/99-thunderbolt-pm.rules /usr/lib/udev/rules.d/99-thunderb
 COPY --from=ctx /power/default-wifi-powersave-on.conf /usr/lib/NetworkManager/conf.d/default-wifi-powersave-on.conf
 
 ### powertop autotune on boot
-COPY --from=ctx /power/powertop-autotune.service /usr/lib/systemd/system/powertop-autotune.service
-RUN systemctl enable powertop-autotune.service
+### no longer using a custome file - as fedora powertop package includes in-box service file, 
+### which is enabled in build.sh
+#COPY --from=ctx /power/powertop-autotune.service /usr/lib/systemd/system/powertop-autotune.service
+#RUN systemctl enable powertop-autotune.service
 
 ### ASPM tuning on boot (forces a couple of stubborn devices to enable ASPM)
 COPY --from=ctx /power/aspm-tune.sh /usr/bin/aspm-tune.sh

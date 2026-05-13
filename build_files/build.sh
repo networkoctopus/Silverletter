@@ -11,6 +11,8 @@ set -ouex pipefail
 
 # Install some useful tools for debugging and profiling gpu and power usage
 dnf5 install -y intel-gpu-tools powertop
+# Enable powertop --autotune on startup
+RUN systemctl enable powertop.service
 
 # Install Toshy native dependencies
 dnf5 install -y --skip-unavailable \

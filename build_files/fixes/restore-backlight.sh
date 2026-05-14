@@ -1,12 +1,16 @@
 #!/bin/bash
-BACKLIGHT=/sys/class/backlight/intel_backlight
-case "$1" in
-    pre)
-        cat "$BACKLIGHT/brightness" > /tmp/backlight-save 2>/dev/null || true
-        ;;
-    post)
-        sleep 1
-        [ -f /tmp/backlight-save ] && \
-            cat /tmp/backlight-save > "$BACKLIGHT/brightness" 2>/dev/null || true
-        ;;
+# Author xortim, jirkafm
+# Description Workaround for intel backlight brightness quirk.
+# Script should be put into /usr/lib/systemd/system-sleep 
+
+case "${1}" in
+ post)
+ echo 1 > /sys/class/backlight/intel_backlight/brightness
+ cat /tmp/pre_suspend_brt > /sys/class/backlight/intel_backlight/brightness
+ ;;
+ pre)
+ cat /sys/class/backlight/intel_backlight/brightness > /tmp/pre_suspend_brt
+ ;;
+ *)
+ exit 1
 esac

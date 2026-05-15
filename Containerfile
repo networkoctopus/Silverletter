@@ -102,6 +102,10 @@ RUN chmod +x /usr/bin/power-audit.sh
 COPY --from=ctx /fixes/restore-backlight.sh /usr/lib/systemd/system-sleep/restore-backlight.sh
 RUN chmod +x /usr/lib/systemd/system-sleep/restore-backlight.sh
 
+##Speed up Resume (https://forums.linuxmint.com/viewtopic.php?t=456323)
+COPY --from=ctx /fixes/fix-macbook-wakeup /usr/lib/systemd/system-sleep/fix-macbook-wakeup
+RUN chmod +x /usr/lib/systemd/system-sleep/fix-macbook-wakeup
+
 ### Broadcom wl WiFi interface reset on suspend/resume  (was slower to reconnect)
 #COPY --from=ctx /fixes/wl-suspend.service /usr/lib/systemd/system/wl-suspend.service
 #COPY --from=ctx /fixes/wl-suspend.sh /usr/bin/wl-suspend.sh

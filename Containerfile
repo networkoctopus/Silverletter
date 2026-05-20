@@ -116,9 +116,9 @@ RUN chmod +x /usr/lib/systemd/system-sleep/fix-macbook-wakeup
 #RUN ln -sf firmware.bin /usr/lib/firmware/facetimehd/1871_01XX.dat    
 
 ### Add Ublue automatic updates process uupd
-RUN dnf copr enable ublue-os/packages && \
-    dnf install -y uupd && \
-    systemctl enable uupd.timer && \
+RUN dnf copr enable ublue-os/packages
+RUN dnf install -y uupd
+RUN systemctl enable uupd.timer && \
     echo "Ublue automatic updates enabled"
 
 ### Disable old rpm-ostree automatic updates process

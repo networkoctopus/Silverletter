@@ -142,9 +142,19 @@ RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=tmpfs,dst=/tmp \
     /ctx/build.sh
 
-### Post-build cleanup (must be outside cache mounts)
-RUN rm -rf /var/cache/libdnf5 && \
-    truncate -s 0 /var/log/dnf5.log
+### Post-build cleanup
+RUN rm -rf \
+    /var/cache/* \
+    /var/lib/dnf/repos/* \
+    /var/lib/flatpak/repo/* \
+    /run/dnf/* \
+    /tmp/* \
+    /var/tmp/* && \
+    rm -f \
+    /var/cache/ldconfig/aux-cache \
+    /var/lib/dnf/system-repo.lock \
+    /var/lib/flatpak/.changed && \
+    find /var/log -type f -exec truncate -s 0 {} \;
 
 ### LINTING
 ## Verify final image and contents are correct.

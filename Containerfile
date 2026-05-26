@@ -10,42 +10,42 @@ RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=cache,dst=/var/cache \
     --mount=type=cache,dst=/var/log \
     --mount=type=tmpfs,dst=/tmp \
-    /ctx/scripts/10-kmods.sh
+    /ctx/build_files/10-kmods.sh
 
 ### FIXES (sleep hooks, backlight, wakeup)
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=cache,dst=/var/cache \
     --mount=type=cache,dst=/var/log \
-    /ctx/scripts/15-fixes.sh
+    /ctx/build_files/15-fixes.sh
 
 ### POWER (powertop, mbpfan, aspm, wifi powersave)
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=cache,dst=/var/cache \
     --mount=type=cache,dst=/var/log \
     --mount=type=tmpfs,dst=/tmp \
-    /ctx/scripts/20-power.sh
+    /ctx/build_files/20-power.sh
 
 ### PACKAGES (intel-gpu-tools, gnome extensions, dconf, toshy deps)
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=cache,dst=/var/cache \
     --mount=type=cache,dst=/var/log \
     --mount=type=tmpfs,dst=/tmp \
-    /ctx/scripts/30-packages.sh
+    /ctx/build_files/30-packages.sh
 
 ### TOSHY (first-login setup scripts + service)
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
-    /ctx/scripts/40-toshy.sh
+    /ctx/build_files/40-toshy.sh
 
 ### UPDATES (uupd, disable rpm-ostreed auto-updates, flatpak remotes)
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=cache,dst=/var/cache \
     --mount=type=cache,dst=/var/log \
-    /ctx/scripts/50-updates.sh
+    /ctx/build_files/50-updates.sh
 
 ### CLEANUP
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=cache,dst=/var/cache \
-    /ctx/scripts/100-cleanup.sh
+    /ctx/build_files/100-cleanup.sh
 
 ### LINTING
 RUN bootc container lint

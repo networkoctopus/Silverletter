@@ -2,7 +2,6 @@
 set -ouex pipefail
 
 ### ── Sleep hooks ──
-
 # Restore Intel backlight brightness after S3 resume
 # (intel_backlight driver may leave brightness at 0 after wake)
 install -Dm755 /ctx/fixes/restore-backlight.sh \

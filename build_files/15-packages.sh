@@ -4,7 +4,7 @@ set -ouex pipefail
 ### Install packages from packages.yml
 dnf5 install -y yq && \
     yq eval '.[][]' /ctx/packages.yml | xargs dnf5 install -y --skip-unavailable && \
-    yq eval '.[][]' /ctx/packages.yml | xargs dnf5 mark install && \
+    yq eval '.[][]' /ctx/packages.yml | xargs dnf5 -y mark user && \
     dnf5 remove -y --no-autoremove yq
 
 ### ── mbpfan (fan control for MacBooks) ──

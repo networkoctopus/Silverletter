@@ -26,16 +26,7 @@ akmods --force --kernels "$(rpm -q --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}'
 # Mark runtime packages as user-installed so autoremove keeps them
 dnf5 -y mark user facetimehd facetimehd-firmware
 
-# Remove build-time-only kmod toolchain
-dnf5 remove -y \
-    akmod-facetimehd \
-    akmods \
-    kmodtool \
-    kernel-devel \
-    kernel-devel-matched \
-    kernel-headers
-dnf5 autoremove -y
-
+# Cleanup akmods build artifacts to save space
 rm -rf /var/cache/akmods /run/akmods /run/dnf
 
 ### ── akmods user cleanup ──

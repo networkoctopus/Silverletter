@@ -28,7 +28,14 @@ if [[ -f /etc/yum.repos.d/fedora-coreos-pool.repo ]]; then
     sed -i 's@enabled=1@enabled=0@g' /etc/yum.repos.d/fedora-coreos-pool.repo
 fi
 
-### ── DNF cleanup ──
+# Remove build-time-only kmod toolchain
+dnf5 remove -y \
+    akmod-facetimehd \
+    akmods \
+    kmodtool \
+    kernel-devel \
+    kernel-devel-matched \
+    kernel-headers
 dnf5 autoremove -y
 
 ### ── Cache / run / tmp cleanup ──

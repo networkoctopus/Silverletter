@@ -23,7 +23,6 @@ install -Dm644 /ctx/power/default-wifi-powersave-on.conf \
 
 ### ── powertop autotune ──
 # Fedora powertop package includes the service file; just enable it
-dnf5 install -y powertop intel-gpu-tools
 systemctl enable powertop.service
 
 ### ── ASPM tuning ──

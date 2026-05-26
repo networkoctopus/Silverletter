@@ -1,45 +1,11 @@
 #!/bin/bash
 set -ouex pipefail
 
-### ── mbpfan (fan control for MacBooks) ──
-dnf5 install -y make gcc git
-git clone --depth 1 --branch v2.4.0 https://github.com/linux-on-mac/mbpfan.git /tmp/mbpfan
-cd /tmp/mbpfan
-make
-make install
-install -Dm644 mbpfan.service /usr/lib/systemd/system/mbpfan.service
-systemctl enable mbpfan.service
-cd /
-rm -rf /tmp/mbpfan
-
-### ── Toshy native dependencies ──
-dnf5 install -y --skip-unavailable \
-    cairo-devel \
-    cairo-gobject-devel \
-    dbus \
-    dbus-devel \
-    dbus-daemon \
-    dbus-tools \
-    evtest \
-    gcc \
-    git \
-    gobject-introspection-devel \
-    libappindicator-gtk3 \
-    libinput-utils \
-    libjpeg-turbo-devel \
-    libnotify \
-    libxkbcommon-devel \
-    python3-dbus \
-    python3-devel \
-    python3-pip \
-    python3-tkinter \
-    systemd-devel \
-    wayland-devel \
-    xorg-x11-utils \
-    zenity
-
-### ── Theme native dependencies ──
-dnf5 install -y gnome-tweaks sassc glib2-devel
+### Install packages from packages.yml
+dnf5 install -y yq && \
+    yq eval '.[][]' /var/tmp/packages.yml | xargs dnf5 install -y --skip-unavailable && \
+    dnf5 remove -y yq && \
+    rm /var/tmp/packages.yml
 
 ### ── GNOME Shell extensions (system-wide) ──
 GNOME_VERSION=$(rpm -q --queryformat '%{VERSION}' gnome-shell | cut -d. -f1)
@@ -94,3 +60,14 @@ disable-user-extensions=false
 EOF
 
 dconf update
+
+### ── mbpfan (fan control for MacBooks) ──
+git clone --depth 1 --branch v2.4.0 https://github.com/linux-on-mac/mbpfan.git /tmp/mbpfan
+cd /tmp/mbpfan
+make
+make install
+install -Dm644 mbpfan.service /usr/lib/systemd/system/mbpfan.service
+systemctl enable mbpfan.service
+cd /
+rm -rf /tmp/mbpfan
+dnf5 remove -y make

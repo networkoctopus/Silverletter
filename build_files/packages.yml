@@ -1,0 +1,39 @@
+# powertop / intel-gpu-tools (power tuning and monitoring)
+power_monitoring:
+  - powertop
+  - intel-gpu-tools
+
+# Toshy native dependencies
+toshy_deps:
+  - cairo-devel
+  - cairo-gobject-devel
+  - dbus
+  - dbus-devel
+  - dbus-daemon
+  - dbus-tools
+  - evtest
+  - gcc
+  - git
+  - gobject-introspection-devel
+  - libappindicator-gtk3
+  - libinput-utils
+  - libjpeg-turbo-devel
+  - libnotify
+  - libxkbcommon-devel
+  - python3-dbus
+  - python3-devel
+  - python3-pip
+  - python3-tkinter
+  - systemd-devel
+  - wayland-devel
+  - zenity
+
+# Theme native dependencies
+theme_deps:
+  - gnome-tweaks
+  - sassc
+  - glib2-devel
+
+# mbpfan (fan control for MacBooks)
+mbpfan_deps:
+  - make

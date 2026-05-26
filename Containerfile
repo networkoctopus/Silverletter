@@ -12,11 +12,13 @@ RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=tmpfs,dst=/tmp \
     /ctx/10-kmods.sh
 
-### FIXES (sleep hooks, backlight, wakeup)
+### PACKAGES (mbpfan, intel-gpu-tools, gnome extensions, dconf, toshy deps)
+COPY /ctx/packages.yml /var/tmp/packages.yml
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=cache,dst=/var/cache \
     --mount=type=cache,dst=/var/log \
-    /ctx/15-fixes.sh
+    --mount=type=tmpfs,dst=/tmp \
+    /ctx/15-packages.sh
 
 ### POWER (powertop, aspm, wifi powersave)
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
@@ -25,12 +27,11 @@ RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=tmpfs,dst=/tmp \
     /ctx/20-power.sh
 
-### PACKAGES (mbpfan, intel-gpu-tools, gnome extensions, dconf, toshy deps)
+### FIXES (sleep hooks, backlight, wakeup)
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=cache,dst=/var/cache \
     --mount=type=cache,dst=/var/log \
-    --mount=type=tmpfs,dst=/tmp \
-    /ctx/30-packages.sh
+    /ctx/30-fixes.sh
 
 ### TOSHY (first-login setup scripts + service)
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \

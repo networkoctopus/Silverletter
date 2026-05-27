@@ -10,6 +10,10 @@ dnf5 install -y \
     /var/tmp/akmods-common/rpms/kmods/kmod-wl*.rpm
 
 ### ── FacetimeHD (built from akmod source) ──
+# Install kernel-devel matching base image kernel before akmod deps need it
+KERNEL_VERSION=$(rpm -q --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}' kernel-core)
+dnf5 install -y kernel-devel-${KERNEL_VERSION}
+
 dnf5 -y copr enable mulderje/facetimehd-kmod
 dnf5 install -y --setopt=tsflags=noscripts \
     facetimehd-kmod \
@@ -20,7 +24,7 @@ dnf5 -y copr disable mulderje/facetimehd-kmod
 echo "=== Builder kernel: $(uname -r) ==="
 echo "=== Target kernel: $(rpm -q --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}' kernel-devel) ==="
 
-akmods --force --kernels "$(rpm -q --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}' kernel-devel)"
+akmods --force --kernels "${KERNEL_VERSION}"
 
 # Mark runtime packages as user-installed so autoremove keeps them
 dnf5 -y mark user facetimehd facetimehd-firmware

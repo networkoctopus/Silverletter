@@ -51,3 +51,6 @@ dnf5 remove -y \
     kernel-devel-matched \
     kernel-headers \
     make
+
+### Clean up packages
+dnf5 autoremove -y

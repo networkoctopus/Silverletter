@@ -28,17 +28,14 @@ if [[ -f /etc/yum.repos.d/fedora-coreos-pool.repo ]]; then
     sed -i 's@enabled=1@enabled=0@g' /etc/yum.repos.d/fedora-coreos-pool.repo
 fi
 
-### Clean up packages
-dnf5 autoremove -y
-
-### ── Cache / run / tmp cleanup ──
-rm -rf \
-    /run/dnf \
-    /tmp/* \
-    /var/tmp/* \
-    /var/cache/* \
-    /var/lib/dnf/repos \
-    /var/lib/dnf/system-repo.lock
-
-### ── Log cleanup ──
-find /var/log -type f -delete
+#### ── Cache / run / tmp cleanup ──
+#rm -rf \
+#    /run/dnf \
+#    /tmp/* \
+#    /var/tmp/* \
+#    /var/cache/* \
+#    /var/lib/dnf/repos \
+#    /var/lib/dnf/system-repo.lock
+#
+#### ── Log cleanup ──
+#find /var/log -type f -delete

@@ -37,6 +37,9 @@ systemctl enable mbpfan.service
 cd /
 rm -rf /tmp/mbpfan
 
+### Mark packages from packages.yml as user-installed so they aren't accidentally removed during cleanup
+yq eval '.[][]' /ctx/packages.yml | xargs dnf5 -y mark user
+
 # Remove build-time-only kmod toolchain
 dnf5 remove -y \
     akmod-facetimehd \
@@ -44,10 +47,8 @@ dnf5 remove -y \
     kmodtool \
     kernel-devel \
     kernel-devel-matched \
-    kernel-headers 
-
-### Clean up packages
-dnf5 autoremove -y
+    kernel-headers \
+    yq
 
 ### Cleanup up akmods temp file
 rm -rf /var/cache/akmods /var/tmp/akmods-common /run/akmods /run/dnf

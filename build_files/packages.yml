@@ -33,3 +33,7 @@ theme_deps:
   - gnome-tweaks
   - sassc
   - glib2-devel
+
+  # uupd
+update_deps:
+  - uupd

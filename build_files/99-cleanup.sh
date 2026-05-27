@@ -1,6 +1,9 @@
 #!/bin/bash
 set -ouex pipefail
 
+# Disable ublue-os repo
+dnf5 -y copr disable ublue-os/packages
+
 ### ── Disable leftover third-party repos ──
 for repo in negativo17-fedora-multimedia fedora-cisco-openh264; do
     if [[ -f "/etc/yum.repos.d/${repo}.repo" ]]; then
@@ -28,7 +31,9 @@ if [[ -f /etc/yum.repos.d/fedora-coreos-pool.repo ]]; then
     sed -i 's@enabled=1@enabled=0@g' /etc/yum.repos.d/fedora-coreos-pool.repo
 fi
 
-# Cleanup
+### Clean up packages
+dnf5 autoremove -y
+
 # Remove tmp files and everything in dirs that make bootc unhappy
 rm -rf /tmp/* || true
 rm -rf /run/dnf
@@ -41,15 +46,3 @@ find /var/cache/* -maxdepth 0 -type d \! -name libdnf5 -exec rm -rf {} \;
 # Make sure /var/tmp is properly created
 mkdir -p /var/tmp
 chmod -R 1777 /var/tmp
-
-#### ── Cache / run / tmp cleanup ──
-#rm -rf \
-#    /run/dnf \
-#    /tmp/* \
-#    /var/tmp/* \
-#    /var/cache/* \
-#    /var/lib/dnf/repos \
-#    /var/lib/dnf/system-repo.lock
-#
-#### ── Log cleanup ──
-#find /var/log -type f -delete

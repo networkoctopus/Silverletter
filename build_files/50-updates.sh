@@ -2,9 +2,6 @@
 set -ouex pipefail
 
 ### ── uupd (ublue automatic updates) ──
-dnf5 -y copr enable ublue-os/packages
-dnf5 install -y uupd
-dnf5 -y copr disable ublue-os/packages
 systemctl enable uupd.timer
 echo "ublue automatic updates enabled"
 

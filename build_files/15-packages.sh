@@ -2,9 +2,17 @@
 set -ouex pipefail
 
 ### Install packages from packages.yml
-dnf5 install -y yq && \
-    yq eval '.[][]' /ctx/packages.yml | xargs dnf5 install -y --skip-unavailable && \
-    dnf5 remove -y yq
+dnf5 install -y yq
+
+# 1. Store and install your explicit packages
+MY_PACKAGES=$(yq eval '.[][]' /ctx/packages.yml | xargs)
+dnf5 install -y --skip-unavailable $MY_PACKAGES
+
+# 2. Query DNF5 for ALL dependencies required by your packages and mark them all as user-installed
+# This protects gcc, its plugins, cairo-devel, and all their sub-libraries
+dnf5 repoquery --installed --requires $MY_PACKAGES | xargs dnf5 -y mark user $MY_PACKAGES
+
+dnf5 remove -y yq
 
 ### ── GNOME Shell extensions (system-wide) ──
 GNOME_VERSION=$(rpm -q --queryformat '%{VERSION}' gnome-shell | cut -d. -f1)

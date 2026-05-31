@@ -5,10 +5,10 @@
 # The script is locked so only one instance runs despite multiple add events.
 
 ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x156b", \
-    RUN+="/usr/local/bin/tb-powerdown.sh"
+    RUN+="/usr/libexec/tb-powerdown.sh"
 
 ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x156a", \
-    RUN+="/usr/local/bin/tb-powerdown.sh"
+    RUN+="/usr/libexec/tb-powerdown.sh"
 
 # Enable power management for Thunderbolt controllers and ports
 #ACTION=="add", SUBSYSTEM=="pci", KERNEL=="0000:05:00.0", ATTR{power/control}="auto"

@@ -8,7 +8,7 @@ omit_drivers+=" amdgpu radeon nouveau nvidia "
 # Exclude irrelevant dracut modules
 omit_dracutmodules+=" nss-softokn fido2 pkcs11 pcsc tpm2-tss systemd-pcrphase "
 # Include wl for early wifi
-force_drivers+=" wl lib80211 lib80211_crypt_tkip "
+force_drivers+=" wl lib80211_crypt_tkip "
 EOF
 
 KERNEL_VERSION="$(rpm -q --queryformat="%{evr}.%{arch}" kernel-core)"

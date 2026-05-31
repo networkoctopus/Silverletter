@@ -1,4 +1,6 @@
 #!/usr/bin/bash
+# Masked services that are not used and slow down the boot process.
+
 set -eoux pipefail
 
 systemctl mask \
@@ -16,7 +18,4 @@ systemctl mask \
     lvm2-monitor.service \
     lvm-devices-import.service \
     lvm-devices-import.path \
-    smartd.service \
-    fwupd.service \
-    plymouth-quit-wait.service \
-    fedora-atomic-desktop-appstream-cache-refresh.service
+    plymouth-quit-wait.service

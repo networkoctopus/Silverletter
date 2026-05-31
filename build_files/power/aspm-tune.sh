@@ -4,7 +4,7 @@
 ROOT_COMPLEXES=("00:1c.0" "00:1c.4")
 ENDPOINT="02:00.0"
 ASPM_SETTING=3
-VERIFY_DELAY=10   # seconds to wait after first pass before verification re-check (0 to disable)
+VERIFY_DELAY=3   # seconds to wait after first pass before verification re-check (0 to disable)
 # ======================
 
 GREEN="\033[01;32m"
@@ -79,7 +79,7 @@ enable_aspm_byte() {
     # 🔁 Retry logic (3 attempts, 2s apart)
     for i in {1..3}; do
         /usr/bin/setpci -s $DEV ${ASPM_BYTE_ADDRESS}.b=${ASPM_SETTING}:3
-        sleep 2
+        sleep 0.2
 
         ACTUAL=$(/usr/bin/setpci -s $DEV ${ASPM_BYTE_ADDRESS}.b)
         ACTUAL=$(printf "%X" 0x${ACTUAL})

@@ -16,6 +16,8 @@ install -Dm644 /ctx/power/thunderbolt-blacklist.conf \
 install -Dm644 /ctx/power/99-thunderbolt-pm.rules \
     /usr/lib/udev/rules.d/99-thunderbolt-pm.rules
 
+install -Dm755 /ctx/power/tb-powerdown.sh /usr/local/bin/tb-powerdown.sh
+
 ### ── NetworkManager ──
 # Enable WiFi powersave by default
 install -Dm644 /ctx/power/default-wifi-powersave-on.conf \

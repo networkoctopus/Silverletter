@@ -19,11 +19,15 @@ systemctl mask packagekit
 echo "gnome-software dnf5 plugin removed, packagekit masked"
 
 ### ── Disable gnome-software background updates via dconf (system-wide) ──
-mkdir -p /etc/dconf/db/local.d
+mkdir -p /etc/dconf/db/local.d /etc/dconf/db/local.d/locks
 cat > /etc/dconf/db/local.d/01-gnome-software << 'EOF'
 [org/gnome/software]
 allow-updates=false
 download-updates=false
 EOF
+cat > /etc/dconf/db/local.d/locks/gnome-software << 'EOF'
+/org/gnome/software/allow-updates
+/org/gnome/software/download-updates
+EOF
 dconf update
-echo "gnome-software dconf policy applied"
+echo "gnome-software dconf policy applied and locked"

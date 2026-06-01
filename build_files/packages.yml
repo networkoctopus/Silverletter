@@ -37,7 +37,3 @@ theme_deps:
   # uupd
 update_deps:
   - uupd
-
-  # dracut compression alg
-initramfs_deps:
-  - lz4 

@@ -11,8 +11,8 @@ cat > /usr/lib/dracut/dracut.conf.d/99-linuxbook-air.conf << 'EOF'
 
 # Apple hardware + FaceTime camera drivers
 force_drivers+=" applespi spi-pxa2xx-core spi-pxa2xx-platform hid-apple i915 coretemp intel_pmc_bxt iTCO_wdt dw_dmac drm_buddy drm_display_helper ttm wmi video cec mc videobuf2-common videobuf2-dma-sg videobuf2-memops videobuf2-v4l2 videodev i2c-algo-bit i2c-dev uhid uinput hid-logitech-hidpp "
-#omit_drivers+=" amdgpu radeon nouveau nvidia xe qla2xxx qla4xxx lpfc mpt3sas mpt2sas qed qedf qedi intel_qat "
-#omit_dracutmodules+=" nss-softokn fido2 pkcs11 pcsc tpm2-tss systemd-pcrphase btrfs lvm mdraid nvdimm qemu virtiofs "
+omit_drivers+=" amdgpu radeon nouveau nvidia xe qla2xxx qla4xxx lpfc mpt3sas mpt2sas qed qedf qedi intel_qat "
+omit_dracutmodules+=" nss-softokn fido2 pkcs11 pcsc tpm2-tss systemd-pcrphase btrfs lvm mdraid nvdimm qemu virtiofs "
 
 # Faster decompression
 compress="zstd"

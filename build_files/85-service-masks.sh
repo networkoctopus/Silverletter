@@ -3,7 +3,7 @@
 
 set -eoux pipefail
 
-systemctl mask \
+systemctl disable \
     gssproxy.service \
     nfs-client.target \
     remote-fs.target \
@@ -12,10 +12,12 @@ systemctl mask \
     NetworkManager-wait-online.service \
     sssd-kcm.service \
     sssd-kcm.socket \
+    pcscd.service \
     pcscd.socket \
     ModemManager.service \
     systemd-homed.service \
     lvm2-monitor.service \
     lvm-devices-import.service \
-    lvm-devices-import.path \
-    plymouth-quit-wait.service
+    lvm-devices-import.path
+
+systemctl mask plymouth-quit-wait.service

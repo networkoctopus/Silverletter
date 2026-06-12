@@ -1,0 +1,13 @@
+[Unit]
+Description=MacTahoe Firefox Theme Setup
+ConditionPathExists=!%h/.config/mactahoe/.firefox-done
+After=graphical-session.target
+Requires=graphical-session.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+ExecStart=/usr/libexec/mactahoe-firefox-setup.sh
+
+[Install]
+WantedBy=graphical-session.target

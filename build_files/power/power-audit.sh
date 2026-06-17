@@ -81,7 +81,7 @@ FILES=(
     "/usr/lib/NetworkManager/conf.d/default-wifi-powersave-on.conf"
     "/usr/lib/systemd/system/powertop.service"
     "/usr/lib/systemd/system/aspm-tune.service"
-    "/usr/lib/systemd/system/aspm-tune-resume.service"
+    #"/usr/lib/systemd/system/aspm-tune-resume.service"
     "/usr/bin/aspm-tune.sh"
 )
 
@@ -157,7 +157,8 @@ fi
 # ─── 5. SYSTEMD SERVICES ───────────────────────────────────────────────────
 header "Systemd Services"
 
-SERVICES=("powertop.service" "aspm-tune.service" "aspm-tune-resume.service")
+SERVICES=("powertop.service" "aspm-tune.service" #"aspm-tune-resume.service"
+)
 for svc in "${SERVICES[@]}"; do
     enabled=$(systemctl is-enabled "$svc" 2>/dev/null)
     active=$(systemctl is-active "$svc" 2>/dev/null)

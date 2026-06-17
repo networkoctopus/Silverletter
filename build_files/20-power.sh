@@ -35,9 +35,10 @@ install -Dm644 /ctx/power/aspm-tune.service \
     /usr/lib/systemd/system/aspm-tune.service
 systemctl enable aspm-tune.service
 
-install -Dm644 /ctx/power/aspm-tune-resume.service \
-    /usr/lib/systemd/system/aspm-tune-resume.service
-systemctl enable aspm-tune-resume.service
+#Not using suspend resume version anymore as it isn't necessary
+#install -Dm644 /ctx/power/aspm-tune-resume.service \
+#    /usr/lib/systemd/system/aspm-tune-resume.service
+#systemctl enable aspm-tune-resume.service
 
 ### ── Power audit script (manual troubleshooting tool) ──
 install -Dm755 /ctx/power/power-audit.sh /usr/bin/power-audit.sh

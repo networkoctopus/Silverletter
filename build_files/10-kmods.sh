@@ -49,14 +49,11 @@ systemctl enable mbpfan.service
 cd /
 rm -rf /tmp/mbpfan
 
-# Remove build-time-only kmod toolchain
+# Remove build-time-only kmod toolchain (gcc/make/binutils cleaned by autoremove)
 dnf5 remove -y \
-    akmods \
-    kmodtool \
     kernel-devel \
     kernel-devel-matched \
-    kernel-headers \
-    curl cpio xz
+    kernel-headers
 
 ### Clean up packages
 dnf5 autoremove -y

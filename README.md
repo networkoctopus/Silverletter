@@ -1,266 +1,161 @@
-# image-template
+# LinuxBook-Air
 
-This repository is meant to be a template for building your own custom [bootc](https://github.com/bootc-dev/bootc) image. This template is the recommended way to make customizations to any image published by the Universal Blue Project.
+A practical, immutable Fedora GNOME image for Intel MacBook Airs, built on [Universal Blue's `silverblue-main`](https://github.com/ublue-os/main).
 
-# Community
+LinuxBook-Air aims to feel like stock Fedora GNOME while making an older MacBook a better Linux laptop: Mac-style keyboard shortcuts, working Broadcom Wi-Fi and FaceTime HD camera support, automatic transactional updates, sensible fan control, and aggressive power and boot-time tuning.
 
-If you have questions about this template after following the instructions, try the following spaces:
-- [Universal Blue Forums](https://universal-blue.discourse.group/)
-- [Universal Blue Discord](https://discord.gg/WEu6BdFEtp)
-- [bootc discussion forums](https://github.com/bootc-dev/bootc/discussions) - This is not an Universal Blue managed space, but is an excellent resource if you run into issues with building bootc images.
+This image has been my daily workhorse for three months, so I decided it was time to share it.
 
-# How to Use
+> [!IMPORTANT]
+> **Thunderbolt is intentionally disabled to save power.** Treat the Thunderbolt/Mini DisplayPort port as unsupported: attached devices and some display configurations may not work. If you rely on that port, this image is not currently for you. If you do not, disabling it can save multiple watts.
 
-To get started on your first bootc image, simply read and follow the steps in the next few headings.
-If you prefer instructions in video form, TesterTech created an excellent tutorial, embedded below.
+## What you get
 
-[![Video Tutorial](https://img.youtube.com/vi/IxBl11Zmq5w/0.jpg)](https://www.youtube.com/watch?v=IxBl11Zmq5wE)
+- A mostly stock Fedora GNOME experience on the Universal Blue Silverblue base
+- Mac-like shortcuts provided by [Toshy](https://github.com/RedBearAK/Toshy)
+- Broadcom Wi-Fi and FaceTime HD camera drivers baked into the image
+- [mbpfan](https://github.com/linux-on-mac/mbpfan) for MacBook fan control
+- [uupd](https://github.com/ublue-os/uupd) automatic image and Flatpak updates
+- The [uupd Indicator](https://github.com/Vyachean/uupd-indicator) GNOME extension, including restart-required notifications
+- Wi-Fi power saving, PowerTOP auto-tuning, PCIe ASPM tuning, and Mac-specific sleep/wake fixes
+- A deliberately smaller, hardware-focused initramfs; on the test machine this reduced boot time from 40 seconds to about 25 seconds
+- A first-run GUI which installs Toshy and the standard GNOME Flatpak applications; Firefox is already included in the image
 
-## Step 0: Prerequisites
+At 50% display brightness with Wi-Fi enabled, the test 11 inch machine typically draws around **4.5 W**. That is an observed figure, not a guarantee: battery condition, workload, radio activity, peripherals, and exact hardware all matter. (For reference when cranking brightness to minimum power usage is **3.3-3.5 W** ).
 
-These steps assume you have the following:
-- A Github Account
-- A machine running a bootc image (e.g. Bazzite, Bluefin, Aurora, or Fedora Atomic)
-- Experience installing and using CLI programs
+Because bootc updates are applied on reboot, the faster boot was worth pursuing even more than it would be on a traditional Fedora installation.
 
-## Step 1: Preparing the Template
+## Hardware compatibility
 
-### Step 1a: Copying the Template
+The image is developed and daily-tested on a **2015 MacBook Air (`MacBookAir7,1`)**. Its initramfs and power configuration are intentionally tailored to this generation.
 
-Select `Use this Template` on this page. You can set the name and description of your repository to whatever you would like, but all other settings should be left untouched.
+These closely related Intel MacBook Airs are reasonable candidates, but are **untested unless stated otherwise**:
 
-Once you have finished copying the template, you need to enable the Github Actions workflows for your new repository.
-To enable the workflows, go to the `Actions` tab of the new repository and click the button to enable workflows.
+| Model identifier | Apple model | Confidence |
+| --- | --- | --- |
+| `MacBookAir7,1` | 11-inch, Early 2015 | Daily-tested target |
+| `MacBookAir7,2` | 13-inch, Early 2015 or 2017 | Closest sibling; likely candidate |
+| `MacBookAir6,1` | 11-inch, Mid 2013 or Early 2014 | Similar generation; untested |
+| `MacBookAir6,2` | 13-inch, Mid 2013 or Early 2014 | Similar generation; untested |
+| `MacBookAir5,1` | 11-inch, Mid 2012 | Earlier related hardware; least certain |
+| `MacBookAir5,2` | 13-inch, Mid 2012 (`A1466`) | Earlier related chassis; least certain |
 
-### Step 1b: Cloning the New Repository
-
-Here I will defer to the much superior GitHub documentation on the matter. You can use whichever method is easiest.
-[GitHub Documentation](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository)
-
-Once you have the repository on your local drive, proceed to the next step.
-
-## Step 2: Initial Setup
-
-### Step 2a: Creating a Cosign Key
-
-Container signing is important for end-user security and is enabled on all Universal Blue images. By default the image builds *will fail* if you don't.
-
-First, install the [cosign CLI tool](https://edu.chainguard.dev/open-source/sigstore/cosign/how-to-install-cosign/#installing-cosign-with-the-cosign-binary)
-With the cosign tool installed, run inside your repo folder:
+Check your identifier from Linux with:
 
 ```bash
-COSIGN_PASSWORD="" cosign generate-key-pair
+cat /sys/class/dmi/id/product_name
 ```
 
-The signing key will be used in GitHub Actions and will not work if it is password protected.
+Do not assume that other MacBooks or MacBook Pros are compatible merely because they are from the same year. The trimmed initramfs omits drivers and storage features this specific machine does not need, including LVM, MD RAID, encrypted-root support, and several GPU/storage drivers.
 
-> [!WARNING]
-> Be careful to *never* accidentally commit `cosign.key` into your git repo. If this key goes out to the public, the security of your repository is compromised.
+## Switch from another bootc system
 
-Next, you need to add the key to GitHub. This makes use of GitHub's secret signing system.
+If you already run a bootc-managed system, inspect its current state first:
 
-<details>
-    <summary>Using the Github Web Interface (preferred)</summary>
-
-Go to your repository settings, under `Secrets and Variables` -> `Actions`
-![image](https://user-images.githubusercontent.com/1264109/216735595-0ecf1b66-b9ee-439e-87d7-c8cc43c2110a.png)
-Add a new secret and name it `SIGNING_SECRET`, then paste the contents of `cosign.key` into the secret and save it. Make sure it's the .key file and not the .pub file. Once done, it should look like this:
-![image](https://user-images.githubusercontent.com/1264109/216735690-2d19271f-cee2-45ac-a039-23e6a4c16b34.png)
-</details>
-<details>
-<summary>Using the Github CLI</summary>
-
-If you have the `github-cli` installed, run:
-
-```bash
-gh secret set SIGNING_SECRET < cosign.key
-```
-</details>
-
-### Step 2b: Choosing Your Base Image
-
-To choose a base image, simply modify the line in the container file starting with `FROM`. This will be the image your image derives from, and is your starting point for modifications.
-For a base image, you can choose any of the Universal Blue images or start from a Fedora Atomic system. Below this paragraph is a dropdown with a non-exhaustive list of potential base images.
-
-<details>
-    <summary>Base Images</summary>
-
-- Bazzite: `ghcr.io/ublue-os/bazzite:stable`
-- Aurora: `ghcr.io/ublue-os/aurora:stable`
-- Bluefin: `ghcr.io/ublue-os/bluefin:stable`
-- Universal Blue Base: `ghcr.io/ublue-os/base-main:latest`
-- Fedora: `quay.io/fedora/fedora-bootc:42`
-
-You can find more Universal Blue images on the [packages page](https://github.com/orgs/ublue-os/packages).
-</details>
-
-If you don't know which image to pick, choosing the one your system is currently on is the best bet for a smooth transition. To find out what image your system currently uses, run the following command:
 ```bash
 sudo bootc status
 ```
-This will show you all the info you need to know about your current image. The image you are currently on is displayed after `Booted image:`. Paste that information after the `FROM` statement in the Containerfile to set it as your base image.
 
-### Step 2c: Changing Names
-
-Change the first line in the [Justfile](./Justfile) to your image's name.
-
-To commit and push all the files changed and added in step 2 into your Github repository:
-```bash
-git add Containerfile Justfile cosign.pub
-git commit -m "Initial Setup"
-git push
-```
-Once pushed, go look at the Actions tab on your Github repository's page.  The green checkmark should be showing on the top commit, which means your new image is ready!
-
-## Step 3: Switch to Your Image
-
-From your bootc system, run the following command substituting in your Github username and image name where noted.
-```bash
-sudo bootc switch ghcr.io/<username>/<image_name>
-```
-This should queue your image for the next reboot, which you can do immediately after the command finishes. You have officially set up your custom image! See the following section for an explanation of the important parts of the template for customization.
-
-# Repository Contents
-
-## Containerfile
-
-The [Containerfile](./Containerfile) defines the operations used to customize the selected image.This file is the entrypoint for your image build, and works exactly like a regular podman Containerfile. For reference, please see the [Podman Documentation](https://docs.podman.io/en/latest/Introduction.html).
-
-## build.sh
-
-The [build.sh](./build_files/build.sh) file is called from your Containerfile. It is the best place to install new packages or make any other customization to your system. There are customization examples contained within it for your perusal.
-
-## build.yml
-
-The [build.yml](./.github/workflows/build.yml) Github Actions workflow creates your custom OCI image and publishes it to the Github Container Registry (GHCR). By default, the image name will match the Github repository name. There are several environment variables at the start of the workflow which may be of interest to change.
-
-# Building Disk Images
-
-This template provides an out of the box workflow for creating disk images (ISO, qcow, raw) for your custom OCI image which can be used to directly install onto your machines.
-
-This template provides a way to upload the disk images that is generated from the workflow to a S3 bucket. The disk images will also be available as an artifact from the job, if you wish to use an alternate provider. To upload to S3 we use [rclone](https://rclone.org/) which is able to use [many S3 providers](https://rclone.org/s3/).
-
-## Setting Up ISO Builds
-
-The [build-disk.yml](./.github/workflows/build-disk.yml) Github Actions workflow creates a disk image from your OCI image by utilizing the [bootc-image-builder](https://osbuild.org/docs/bootc/). In order to use this workflow you must complete the following steps:
-
-1. Modify `disk_config/iso.toml` to point to your custom container image before generating an ISO image.
-2. If you changed your image name from the default in `build.yml` then in the `build-disk.yml` file edit the `IMAGE_REGISTRY`, `IMAGE_NAME` and `DEFAULT_TAG` environment variables with the correct values. If you did not make changes, skip this step.
-3. Finally, if you want to upload your disk images to S3 then you will need to add your S3 configuration to the repository's Action secrets. This can be found by going to your repository settings, under `Secrets and Variables` -> `Actions`. You will need to add the following
-  - `S3_PROVIDER` - Must match one of the values from the [supported list](https://rclone.org/s3/)
-  - `S3_BUCKET_NAME` - Your unique bucket name
-  - `S3_ACCESS_KEY_ID` - It is recommended that you make a separate key just for this workflow
-  - `S3_SECRET_ACCESS_KEY` - See above.
-  - `S3_REGION` - The region your bucket lives in. If you do not know then set this value to `auto`.
-  - `S3_ENDPOINT` - This value will be specific to the bucket as well.
-
-Once the workflow is done, you'll find the disk images either in your S3 bucket or as part of the summary under `Artifacts` after the workflow is completed.
-
-# Artifacthub
-
-This template comes with the necessary tooling to index your image on [artifacthub.io](https://artifacthub.io). Use the `artifacthub-repo.yml` file at the root to verify yourself as the publisher. This is important to you for a few reasons:
-
-- The value of artifacthub is it's one place for people to index their custom images, and since we depend on each other to learn, it helps grow the community. 
-- You get to see your pet project listed with the other cool projects in Cloud Native.
-- Since the site puts your README front and center, it's a good way to learn how to write a good README, learn some marketing, finding your audience, etc. 
-
-[Discussion Thread](https://universal-blue.discourse.group/t/listing-your-custom-image-on-artifacthub/6446)
-
-# Justfile Documentation
-
-The `Justfile` contains various commands and configurations for building and managing container images and virtual machine images using Podman and other utilities.
-To use it, you must have installed [just](https://just.systems/man/en/introduction.html) from your package manager or manually. It is available by default on all Universal Blue images.
-
-## Environment Variables
-
-- `image_name`: The name of the image (default: "image-template").
-- `default_tag`: The default tag for the image (default: "latest").
-- `bib_image`: The Bootc Image Builder (BIB) image (default: "quay.io/centos-bootc/bootc-image-builder:latest").
-
-## Building The Image
-
-### `just build`
-
-Builds a container image using Podman.
+Then switch to LinuxBook Air and reboot into the new deployment:
 
 ```bash
-just build $target_image $tag
+sudo bootc switch ghcr.io/networkoctopus/linuxbook-air:latest
+sudo systemctl reboot
 ```
 
-Arguments:
-- `$target_image`: The tag you want to apply to the image (default: `$image_name`).
-- `$tag`: The tag for the image (default: `$default_tag`).
-
-## Building and Running Virtual Machines and ISOs
-
-The below commands all build QCOW2 images. To produce or use a different type of image, substitute in the command with that type in the place of `qcow2`. The available types are `qcow2`, `iso`, and `raw`.
-
-### `just build-qcow2`
-
-Builds a QCOW2 virtual machine image.
+After rebooting, verify the booted image:
 
 ```bash
-just build-qcow2 $target_image $tag
+sudo bootc status
 ```
 
-### `just rebuild-qcow2`
+The switch replaces the operating-system image but keeps the data in `/var`, including home directories. Even so, make a backup first. Layered packages or local system changes from a substantially different image may need to be removed before switching.
 
-Rebuilds a QCOW2 virtual machine image.
+If the new deployment does not suit your machine, boot the previous deployment from the boot menu or roll back:
 
 ```bash
-just rebuild-vm $target_image $tag
+sudo bootc rollback
+sudo systemctl reboot
 ```
 
-### `just run-vm-qcow2`
+## Install with the Anaconda ISO
 
-Runs a virtual machine from a QCOW2 image.
+The installer ISO is built once a week. Open the [Build disk images workflow](https://github.com/networkoctopus/LinuxBook-Air/actions/workflows/build-iso.yml), select the newest successful scheduled run, and download the artifact from the **Artifacts** section at the bottom of the run page. Extract the downloaded archive to get the Anaconda ISO, then write it to a USB drive with your preferred image writer.
+
+GitHub requires you to be signed in to download workflow artifacts. There is no permanent URL for the newest artifact, so the workflow page above is the stable link.
+
+> [!CAUTION]
+> Installing an operating system can erase the selected disk. Back up anything important and carefully confirm the target drive in Anaconda.
+
+After the first login, the LinuxBook Air setup window appears on a later graphical login. It offers to install Toshy and restore the standard GNOME Flatpak application set. You can complete the setup, postpone it, or permanently skip it.
+
+## Updates
+
+The bootc image is rebuilt **twice weekly**, every Wednesday and Sunday. The installer ISO is rebuilt **once weekly**, every Sunday. Builds can also be started manually, so the Actions history may contain additional runs.
+
+`uupd` checks for and stages operating-system and Flatpak updates automatically. The panel indicator shows update activity and tells you when a reboot is needed to enter the newly staged deployment.
+
+## Check the power tuning
+
+The image includes an audit tool which checks the installed power configuration and reports tunables that are active, missing, or unexpected:
 
 ```bash
-just run-vm-qcow2 $target_image $tag
+sudo power-audit.sh
 ```
 
-### `just spawn-vm`
-
-Runs a virtual machine using systemd-vmspawn.
+This is a diagnostic report, not a battery benchmark. For live consumption figures, run PowerTOP on battery after the machine has settled:
 
 ```bash
-just spawn-vm rebuild="0" type="qcow2" ram="6G"
+sudo powertop
 ```
 
-## File Management
+## Known issues
 
-### `just check`
+### Wi-Fi may disconnect during sustained heavy downloads
 
-Checks the syntax of all `.just` files and the `Justfile`.
+Very occasionally—roughly once every couple of weeks on the test machine—the Wi-Fi connection may stop during a heavy but otherwise successful download. Rejoining the network restores the connection. This appears to be caused by the image enabling Wi-Fi power saving.
 
-### `just fix`
+If the extra efficiency is not worth the occasional interruption, create a NetworkManager override:
 
-Fixes the syntax of all `.just` files and the `Justfile`.
+```bash
+sudo nano /etc/NetworkManager/conf.d/wifi-powersave.conf
+```
 
-### `just clean`
+Add the following content and save the file:
 
-Cleans the repository by removing build artifacts.
+```ini
+[connection]
+wifi.powersave = 2
+```
 
-### `just lint`
+Then apply it:
 
-Runs shell check on all Bash scripts.
+```bash
+sudo nmcli connection reload
+sudo systemctl restart NetworkManager
+```
 
-### `just format`
+Disabling Wi-Fi power saving increased observed consumption by approximately **0.5–0.8 W** on the test machine.
 
-Runs shfmt on all Bash scripts.
+### Rare failure to resume from suspend
 
-## Additional resources
+The test machine has once failed to return from suspend and required a hard reboot. The cause has not yet been identified or reproduced reliably.
 
-For additional driver support, ublue maintains a set of scripts and container images available at [ublue-akmod](https://github.com/ublue-os/akmods). These images include the necessary scripts to install multiple kernel drivers within the container (Nvidia, OpenRazer, Framework...). The documentation provides guidance on how to properly integrate these drivers into your container image.
+## To do
 
-## Community Examples
+- Add the [MacTahoe GTK theme](https://github.com/vinceliuice/MacTahoe-gtk-theme) and related desktop theming
 
-These are images derived from this template (or similar enough to this template). Reference them when building your image!
+## Built with
 
-- [m2Giles' OS](https://github.com/m2giles/m2os)
-- [bOS](https://github.com/bsherman/bos)
-- [Homer](https://github.com/bketelsen/homer/)
-- [Amy OS](https://github.com/astrovm/amyos)
-- [VeneOS](https://github.com/Venefilyn/veneos)
+- [Universal Blue `silverblue-main`](https://github.com/ublue-os/main) — Fedora Silverblue base image
+- [Universal Blue akmods](https://github.com/ublue-os/akmods) — prebuilt Broadcom kernel-module packages
+- [Toshy](https://github.com/RedBearAK/Toshy) — Mac-style keyboard shortcuts on Linux
+- [uupd](https://github.com/ublue-os/uupd) — automatic transactional updates
+- [uupd Indicator](https://github.com/Vyachean/uupd-indicator) — GNOME update and restart notifications
+- [mbpfan](https://github.com/linux-on-mac/mbpfan) — fan control for Apple laptops
+- [FaceTime HD driver](https://github.com/patjak/facetimehd) and [firmware extractor](https://github.com/patjak/facetimehd-firmware) — built-in camera support
+- [bootc](https://github.com/bootc-dev/bootc) — transactional, image-based operating-system delivery
 
-## Notes
+## Disclaimer
+
+Have fun, but there are no warranties. This is a personal project shared in the hope that it is useful. It makes deliberate hardware trade-offs, has only been validated on the test machine, and may fail to boot or work correctly elsewhere. Keep backups and know how to select an earlier deployment before experimenting.

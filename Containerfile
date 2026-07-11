@@ -20,40 +20,5 @@ RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     /ctx/90-initramfs.sh && \
     /ctx/99-cleanup.sh
     
-### PACKAGES (mbpfan, intel-gpu-tools, gnome extensions, dconf, toshy deps)
-#RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
-#    --mount=type=cache,dst=/var/cache \
-#    --mount=type=cache,dst=/var/log \
-#    --mount=type=tmpfs,dst=/tmp \
-#    /ctx/15-packages.sh
-#
-#### POWER tweaks (disabled thunderbolt, powertop, aspm, wifi powersave)
-#RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
-#    --mount=type=cache,dst=/var/cache \
-#    --mount=type=cache,dst=/var/log \
-#    --mount=type=tmpfs,dst=/tmp \
-#    /ctx/20-power.sh
-#
-#### FIXES (sleep hooks, backlight, wakeup)
-#RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
-#    --mount=type=cache,dst=/var/cache \
-#    --mount=type=cache,dst=/var/log \
-#    /ctx/30-fixes.sh
-#
-#### POST-DEPLOY SETUP (Toshy + default Flatpaks)
-#RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
-#    /ctx/40-post-deploy-setup.sh
-#
-#### UPDATES (uupd, disable rpm-ostreed auto-updates, flatpak remotes)
-#RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
-#    --mount=type=cache,dst=/var/cache \
-#    --mount=type=cache,dst=/var/log \
-#    /ctx/50-updates.sh
-#
-#### CLEANUP
-#RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
-#    --mount=type=cache,dst=/var/cache \
-#    /ctx/99-cleanup.sh
-
 ### LINTING
 RUN bootc container lint

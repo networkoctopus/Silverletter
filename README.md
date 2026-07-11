@@ -149,6 +149,7 @@ The test machine has once failed to return from suspend and required a hard rebo
 
 ## Built with
 
+- [Universal Blue image-template](https://github.com/ublue-os/image-template) — the starting point for this project
 - [Universal Blue `silverblue-main`](https://github.com/ublue-os/main) — Fedora Silverblue base image
 - [Universal Blue akmods](https://github.com/ublue-os/akmods) — prebuilt Broadcom kernel-module packages
 - [Toshy](https://github.com/RedBearAK/Toshy) — Mac-style keyboard shortcuts on Linux

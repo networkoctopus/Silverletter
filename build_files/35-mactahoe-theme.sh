@@ -62,21 +62,20 @@ WHITESUR_ICON_REPO_DIR="/tmp/WhiteSur-icon-theme"
 git clone --depth=1 https://github.com/vinceliuice/WhiteSur-icon-theme.git \
     "$WHITESUR_ICON_REPO_DIR"
 "$WHITESUR_ICON_REPO_DIR/install.sh" -d /usr/share/icons
-
-for variant in WhiteSur WhiteSur-light WhiteSur-dark; do
-    test -f "/usr/share/icons/$variant/index.theme"
-done
 rm -rf "$WHITESUR_ICON_REPO_DIR"
 
 WHITESUR_CURSOR_REPO_DIR="/tmp/WhiteSur-cursors"
 git clone --depth=1 https://github.com/vinceliuice/WhiteSur-cursors.git \
     "$WHITESUR_CURSOR_REPO_DIR"
-(
-    cd "$WHITESUR_CURSOR_REPO_DIR"
-    ./install.sh
-)
-test -f /usr/share/icons/WhiteSur-cursors/index.theme
-test -e /usr/share/icons/WhiteSur-cursors/cursors/default
+
+# Match MacTahoe's combined layout: each selectable icon variant also carries
+# the cursor assets, rather than exposing a cursor-only entry in icon pickers.
+for variant in WhiteSur WhiteSur-light WhiteSur-dark; do
+    cp -a "$WHITESUR_CURSOR_REPO_DIR/dist/cursors" \
+        "/usr/share/icons/$variant/cursors"
+    test -f "/usr/share/icons/$variant/index.theme"
+    test -e "/usr/share/icons/$variant/cursors/default"
+done
 rm -rf "$WHITESUR_CURSOR_REPO_DIR"
 
 ### Install the paired GNOME wallpapers system-wide.

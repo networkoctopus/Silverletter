@@ -222,9 +222,18 @@ if [[ "$INSTALL_FIREFOX" == true && ! -f "$FIREFOX_SENTINEL" ]]; then
         fail "Firefox did not create a usable default profile."
     fi
 
-    cd "$FIREFOX_REPO" || fail "Could not open the MacTahoe Firefox files."
+    FIREFOX_THEME_TMP=$(mktemp -d)
+    if ! cp -a "$FIREFOX_REPO/." "$FIREFOX_THEME_TMP/" >> "$LOG_FILE" 2>&1; then
+        rm -rf "$FIREFOX_THEME_TMP"
+        fail "The MacTahoe Firefox files could not be prepared."
+    fi
+    chmod -R u+rwX "$FIREFOX_THEME_TMP"
+
+    cd "$FIREFOX_THEME_TMP" || fail "Could not open the MacTahoe Firefox files."
     ./tweaks.sh -f
     FIREFOX_STATUS=$?
+    cd "$HOME" || true
+    rm -rf "$FIREFOX_THEME_TMP"
     [[ $FIREFOX_STATUS -eq 0 ]] || \
         fail "MacTahoe Firefox styling failed. Review the output above."
 

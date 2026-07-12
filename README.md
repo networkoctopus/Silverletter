@@ -86,7 +86,7 @@ Note: GitHub requires you to be signed in to download workflow artifacts.
 
 On the first login, LinuxBook-Air waits for GNOME Initial Setup to finish, then lets you choose whether to install Toshy, apply the WhiteSur desktop theme with MacTahoe icons and Firefox styling, and restore the standard GNOME Flatpak application set. You can install any combination, postpone setup, or permanently skip it.
 
-Open **LinuxBook-Air Setup** from the application launcher to install or remove optional components later.
+Open **Setup** from the application launcher to install or remove optional components later.
 
 ## Updates
 
@@ -131,6 +131,11 @@ sudo systemctl restart NetworkManager
 ### Rare failure to resume from suspend
 
 The test machine once failed to return from suspend and required a hard reboot. The cause has not been identified or reproduced reliably.
+
+## To do
+
+- Add an option to the Setup app to disable all power tunings
+- Add a temporary Thunderbolt enable/disable control, potentially through GNOME's system status menu in the top bar
 
 ## Disclaimer
 

@@ -3,7 +3,7 @@
   LinuxBook-Air
 </h1>
 
-An immutable Fedora GNOME image for Intel MacBook Airs, built on [Universal Blue's `silverblue-main`](https://github.com/ublue-os/main/pkgs/container/silverblue-main). Currently tracking [Fedora 44](https://fedoraproject.org).
+An immutable Fedora GNOME image for the Intel MacBook Air, built on [Universal Blue's `silverblue-main`](https://github.com/ublue-os/main/pkgs/container/silverblue-main). Currently tracking [Fedora 44](https://fedoraproject.org).
 
 Instead of layering required packages onto stock Silverblue — which isn't the preferred convention with bootc/rpm-ostree - I created this instead. Along with serving as a playground on bootc - this became my daily driver since early 2026 - so I decided it was worth sharing.
 
@@ -12,7 +12,7 @@ This little project started with the great [Universal Blue image-template](https
 At 50% display brightness with Wi-Fi enabled and no apps open, my machine draws around **4–4.5 W**, or roughly 10 hours of battery life (if you aren't doing anything else, of course :P).  Not that I use my machine this way, but for reference - with auto-brightness off and brightness at minimum, power usage drops to **3.3–3.5 W!**  Battery condition, open apps, Wi-Fi usage, peripherals, and exact hardware all contribute.
 
 > [!IMPORTANT]
-> **Thunderbolt is intentionally disabled to save power.** If you rely on that port, this image is not for you. I don't use mine, so the multiple watts—and hours—of power savings are worth it.
+> **Thunderbolt is intentionally disabled to save power.** If you rely on that port, this image is not for you. I don't use mine, so the [multiple watts—and hours—of power savings](https://wiki.archlinux.org/title/Mac/Troubleshooting#Disabling_Thunderbolt) are worth it].
 
 ## What's in this image - credits to the maintainers of these projects
 

@@ -122,7 +122,9 @@ class SetupWindow(Gtk.ApplicationWindow):
         page.append(self.body(
             "Choose the optional components to set up. You can install, remove, or reset them later "
             "by opening Setup from the application launcher. GNOME Flatpak applications can be "
-            "uninstalled in GNOME Software."
+            "uninstalled in GNOME Software.\n\n"
+            "Setup works best when all other users are logged out, as Firefox running in another "
+            "user session may prevent Firefox styling from being applied."
         ))
 
         self.install_checks = {
@@ -188,7 +190,7 @@ class SetupWindow(Gtk.ApplicationWindow):
     def _build_warning_page(self) -> None:
         page = self.page_box()
         page.append(self.heading("Ready to continue"))
-        self.warning_label = self.body("")
+        self.warning_label = self.body("", markup=True)
         page.append(self.warning_label)
         row = self.button_row()
         row.append(self.button("Back", lambda _b: self.show_page(self.warning_back_page)))
@@ -252,8 +254,8 @@ class SetupWindow(Gtk.ApplicationWindow):
         notes = ["The installation output will appear in this window."]
         if "--toshy" in arguments:
             notes.append(
-                "Toshy may ask for your sudo password and a few confirmations. When asked whether "
-                "this machine has been updated recently, answer yes."
+                "<b>Important: When Toshy asks whether this machine has been updated recently, "
+                "answer Yes.</b> Toshy may also ask for your sudo password and other confirmations."
             )
         if "--firefox" in arguments:
             notes.append(
@@ -279,7 +281,7 @@ class SetupWindow(Gtk.ApplicationWindow):
         self.pending_arguments = arguments
         self.pending_mode = mode
         self.warning_back_page = "install" if mode == "install" else "remove"
-        self.warning_label.set_text(warning)
+        self.warning_label.set_markup(warning)
         self.continue_button.set_label(button_label)
         self.show_page("warning")
 

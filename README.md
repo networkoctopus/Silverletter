@@ -1,4 +1,4 @@
-# LinuxBook-Air <img src="build_files/post-deploy-setup/linuxbook-air-setup.svg" alt="LinuxBook-Air laptop and Tux icon" width="48">
+# <img src="build_files/post-deploy-setup/linuxbook-air-setup.svg" width="48" style="vertical-align: middle;"> LinuxBook-Air
 
 An immutable Fedora GNOME image for Intel MacBook Airs, built on [Universal Blue's `silverblue-main`](https://github.com/ublue-os/main/pkgs/container/silverblue-main). Currently tracking [Fedora 44](https://fedoraproject.org).
 

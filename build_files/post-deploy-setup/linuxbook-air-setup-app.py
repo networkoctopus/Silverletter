@@ -64,7 +64,6 @@ class SetupWindow(Gtk.ApplicationWindow):
         label.set_valign(Gtk.Align.START)
         label.set_xalign(0)
         label.set_wrap(True)
-        label.set_selectable(True)
         return label
 
     @staticmethod
@@ -205,10 +204,13 @@ class SetupWindow(Gtk.ApplicationWindow):
         page.set_margin_start(18)
         page.set_margin_end(18)
         page.append(self.heading("LinuxBook-Air Setup"))
+        page.append(self.body("Setup output and interactive questions appear below."))
 
         self.terminal = Vte.Terminal()
         self.terminal.set_hexpand(True)
         self.terminal.set_vexpand(True)
+        self.terminal.set_default_colors()
+        self.terminal.set_scroll_on_output(True)
         self.terminal.set_scrollback_lines(5000)
         self.terminal.connect("child-exited", self._on_child_exited)
         page.append(self.terminal)
@@ -294,17 +296,20 @@ class SetupWindow(Gtk.ApplicationWindow):
         envv = [f"{key}={value}" for key, value in environment.items()]
         argv = ["/bin/bash", SETUP_SCRIPT, *self.pending_arguments]
 
-        self.terminal.spawn_async(
-            Vte.PtyFlags.DEFAULT,
-            str(Path.home()),
-            argv,
-            envv,
-            GLib.SpawnFlags.DEFAULT,
-            None,
-            -1,
-            None,
-            self._on_spawn_finished,
-        )
+        try:
+            self.terminal.spawn_async(
+                pty_flags=Vte.PtyFlags.DEFAULT,
+                working_directory=str(Path.home()),
+                argv=argv,
+                envv=envv,
+                spawn_flags=GLib.SpawnFlags.DEFAULT,
+                child_setup=None,
+                timeout=-1,
+                cancellable=None,
+                callback=self._on_spawn_finished,
+            )
+        except Exception as error:
+            self._show_result(False, f"The setup process could not start.\n\n{error}")
 
     def _on_spawn_finished(self, terminal: Vte.Terminal, pid: int, error) -> None:
         if error is not None:

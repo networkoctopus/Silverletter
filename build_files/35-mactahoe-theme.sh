@@ -18,6 +18,22 @@ tar -xJf release/MacTahoe-Dark.tar.xz -C /usr/share/themes
 # variants advertised as available in the image.
 test -f /usr/share/themes/MacTahoe-Light/gtk-3.0/gtk.css
 test -f /usr/share/themes/MacTahoe-Dark/gtk-3.0/gtk.css
+test -f /usr/share/themes/MacTahoe-Light/gnome-shell/gnome-shell.css
+test -f /usr/share/themes/MacTahoe-Dark/gnome-shell/gnome-shell.css
+
+### Install the companion icon and cursor themes system-wide.
+ICON_REPO_DIR="/tmp/MacTahoe-icon-theme"
+git clone --depth=1 https://github.com/vinceliuice/MacTahoe-icon-theme.git \
+    "$ICON_REPO_DIR"
+mkdir -p /usr/share/icons
+"$ICON_REPO_DIR/install.sh" -d /usr/share/icons
+
+# Verify the default, light, and dark entries are visible to theme selectors.
+for variant in MacTahoe MacTahoe-light MacTahoe-dark; do
+    test -f "/usr/share/icons/$variant/index.theme"
+    test -e "/usr/share/icons/$variant/cursors/default"
+done
+rm -rf "$ICON_REPO_DIR"
 
 ### Install the paired GNOME wallpapers system-wide.
 # GNOME selects filename-dark/picture-uri-dark whenever dark mode is active.
@@ -39,13 +55,12 @@ picture-options='zoom'
 EOF
 dconf update
 
-### Install per-user desktop and Firefox setup (runs silently at graphical session)
-install -Dm755 /ctx/mactahoe/mactahoe-firefox-setup.sh \
-    /usr/libexec/mactahoe-firefox-setup.sh
-
-install -Dm644 /ctx/mactahoe/mactahoe-firefox-setup.service \
-    /usr/lib/systemd/user/mactahoe-firefox-setup.service
-
-mkdir -p /usr/lib/systemd/user/graphical-session.target.wants
-ln -sf /usr/lib/systemd/user/mactahoe-firefox-setup.service \
-       /usr/lib/systemd/user/graphical-session.target.wants/mactahoe-firefox-setup.service
+### Fix Fedora's Firefox homepage default.
+# Firefox 152 renders the legacy data:text/plain preference literally instead
+# of extracting the intended Fedora start-page URL (RHBZ #2490879).
+FIREFOX_DEFAULT_PREFS="/usr/lib64/firefox/browser/defaults/preferences/firefox-redhat-default-prefs.js"
+if [[ -f "$FIREFOX_DEFAULT_PREFS" ]]; then
+    sed -i \
+        's#data:text/plain,browser\.startup\.homepage=https://start\.fedoraproject\.org/#https://start.fedoraproject.org/#g' \
+        "$FIREFOX_DEFAULT_PREFS"
+fi

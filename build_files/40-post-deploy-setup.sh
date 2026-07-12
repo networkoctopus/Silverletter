@@ -1,10 +1,9 @@
 #!/bin/bash
 set -ouex pipefail
 
-### ── Per-user second-login setup ──
-# Installs Toshy and restores the standard GNOME Flatpaks. The launcher skips
-# the installer's initial session, then prompts on later logins until the setup
-# completes or the user permanently skips it.
+### ── Per-user first-login setup ──
+# Waits for GNOME Initial Setup to finish, then installs Toshy, applies the
+# Firefox styling, and restores the standard GNOME Flatpaks.
 
 install -Dm755 /ctx/post-deploy-setup/post-deploy-setup.sh \
     /usr/libexec/linuxbook-air-post-deploy-setup.sh

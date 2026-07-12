@@ -76,6 +76,14 @@ for schema_dir in /usr/share/gnome-shell/extensions/*/schemas; do
     fi
 done
 
+# GNOME Tweaks looks up the User Themes schema globally before exposing its
+# Shell theme selector. The extension itself can use its bundled schema, but
+# Tweaks cannot discover it there.
+install -Dm644 \
+    "$EXTENSIONS_DIR/user-theme@gnome-shell-extensions.gcampax.github.com/schemas/org.gnome.shell.extensions.user-theme.gschema.xml" \
+    /usr/share/glib-2.0/schemas/org.gnome.shell.extensions.user-theme.gschema.xml
+glib-compile-schemas /usr/share/glib-2.0/schemas
+
 ### ── Enable extensions system-wide via dconf ──
 mkdir -p /etc/dconf/profile /etc/dconf/db/local.d
 printf 'user-db:user\nsystem-db:local\n' > /etc/dconf/profile/user

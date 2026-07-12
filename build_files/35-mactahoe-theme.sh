@@ -6,15 +6,13 @@ set -ouex pipefail
 REPO_DIR="/usr/share/MacTahoe-gtk-theme"
 git clone --depth=1 https://github.com/vinceliuice/MacTahoe-gtk-theme.git "$REPO_DIR"
 
-### Install default GTK theme system-wide.
-# install.sh redirects its own stderr to /tmp/MacTahoe.lock/error_log.txt via
-# `exec 2>` — errors are invisible in the build log without this trap.
+### Install the official prebuilt light and dark GTK themes system-wide.
+# Using upstream's release archives avoids running its interactive source
+# installer during the image build.
 mkdir -p /usr/share/themes
-MACTAHOE_LOCK_LOG="/tmp/MacTahoe.lock/error_log.txt"
-trap 'echo "=== MacTahoe install.sh error log ==="; cat "$MACTAHOE_LOCK_LOG" 2>/dev/null || echo "(empty)"; echo "===================================="' ERR
 cd "$REPO_DIR"
-./install.sh -d /usr/share/themes --silent-mode
-trap - ERR
+tar -xJf release/MacTahoe-Light.tar.xz -C /usr/share/themes
+tar -xJf release/MacTahoe-Dark.tar.xz -C /usr/share/themes
 
 # Fail the image build if upstream returned success without producing the two
 # variants advertised as available in the image.

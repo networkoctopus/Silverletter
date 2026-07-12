@@ -34,7 +34,6 @@ theme_deps:
   - gnome-tweaks
   - sassc
   - glib2-devel
-  - libxml2
 
   # uupd
 update_deps:

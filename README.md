@@ -1,12 +1,12 @@
 # LinuxBook-Air
 
-An immutable Fedora GNOME image for Intel MacBook Airs, built on [Universal Blue's `silverblue-main`](https://github.com/ublue-os/main). Currently tracking [Fedora 44](https://fedoraproject.org).
+An immutable Fedora GNOME image for Intel MacBook Airs, built on [Universal Blue's `silverblue-main`](https://github.com/ublue-os/main/pkgs/container/silverblue-main). Currently tracking [Fedora 44](https://fedoraproject.org).
 
 I got tired of layering required packages onto stock Silverblue—not the ideal approach with bootc/rpm-ostree. So I created this instead. It's been my daily driver since early 2026, and I decided it was worth sharing.
 
-This little project started with the great [Universal Blue image-template](https://github.com/ublue-os/image-template). The aim was a great out-of-box Fedora Silverblue experience on my 11-year-old, 11-inch Mac: all drivers included, kept close to stock GNOME, with a particular focus on **maximising battery life**.
+This little project started with the great [Universal Blue image-template](https://github.com/ublue-os/image-template). The aim was to create a great out-of-box Fedora Silverblue experience on my 11-year-old, 11-inch Mac: all drivers included, kept close to stock GNOME, with a particular focus on **maximising battery life**.
 
-At 50% display brightness with Wi-Fi enabled and no apps open, my machine draws around **4–4.5 W**, or roughly 10 hours of battery life (if you aren't doing anything else, of course :P). Battery condition, open apps, Wi-Fi usage, peripherals, and exact hardware all contribute. With auto-brightness off and brightness at minimum, power usage drops to **3.3–3.5 W!**
+At 50% display brightness with Wi-Fi enabled and no apps open, my machine draws around **4–4.5 W**, or roughly 10 hours of battery life (if you aren't doing anything else, of course :P). Battery condition, open apps, Wi-Fi usage, peripherals, and exact hardware all contribute. Not that I use my machine this way, but for reference - with auto-brightness off and brightness at minimum, power usage drops to **3.3–3.5 W!**
 
 > [!IMPORTANT]
 > **Thunderbolt is intentionally disabled to save power.** If you rely on that port, this image is not for you. I don't use mine, so the multiple watts—and hours—of power savings are worth it.
@@ -14,15 +14,16 @@ At 50% display brightness with Wi-Fi enabled and no apps open, my machine draws 
 ## What's in this image - credits to the maintainers of these projects
 
 - A mostly stock Fedora GNOME experience on Universal Blue's [`silverblue-main`](https://github.com/ublue-os/main), delivered as a [bootc](https://github.com/bootc-dev/bootc) image
-- Mac-like shortcuts provided by the fantastic [Toshy](https://github.com/RedBearAK/Toshy) project
 - Broadcom Wi-Fi from [Universal Blue akmods](https://github.com/ublue-os/akmods), plus the [FaceTime HD driver](https://github.com/patjak/facetimehd) and [firmware extractor](https://github.com/patjak/facetimehd-firmware), baked in
+- PCIe ASPM tuning, firmware compatibility tweaks, and a MacBook Air display wake fix, Automatic [PowerTOP](https://github.com/fenrus75/powertop) tuning, Wi-Fi power saving 
+- A smaller, hardware-focused initramfs that reduced boot time from 40 to ~25 seconds on the test machine. Because bootc updates apply on reboot, the faster boot was worth pursuing. The initramfs in [`silverblue-main`](https://github.com/ublue-os/main) is 230MB+ whereas this image's initramfs is ~75MB.
+- Mac-like shortcuts provided by the fantastic [Toshy](https://github.com/RedBearAK/Toshy) project
+- A first-run GUI that installs Toshy and restores GNOME Flatpak apps that came with Silverblue from [Flathub](https://flathub.org/) - Firefox is already included in the image.
 - [mbpfan](https://github.com/linux-on-mac/mbpfan) for MacBook fan control
 - [uupd](https://github.com/ublue-os/uupd) automatic image and Flatpak updates
 - GNOME extensions installed and enabled system-wide: [AppIndicator and KStatusNotifierItem Support](https://extensions.gnome.org/extension/615/appindicator-support/), [Xremap](https://extensions.gnome.org/extension/5060/xremap/), [Vitals](https://extensions.gnome.org/extension/1460/vitals/), [User Themes](https://extensions.gnome.org/extension/19/user-themes/), [Dash to Dock](https://extensions.gnome.org/extension/307/dash-to-dock/), and the [uupd Indicator](https://github.com/Vyachean/uupd-indicator) with restart-required notifications
 - The optional [MacTahoe GTK theme](https://github.com/vinceliuice/MacTahoe-gtk-theme), Firefox styling, and day/night wallpapers that follow dark mode; GNOME otherwise keeps its default appearance
-- Automatic [PowerTOP](https://github.com/fenrus75/powertop) tuning, Wi-Fi power saving, PCIe ASPM tuning, firmware compatibility tweaks, and a MacBook Air display wake fix
-- A smaller, hardware-focused initramfs that reduced boot time from 40 to ~25 seconds on the test machine. Because bootc updates apply on reboot, the faster boot was worth pursuing. The initramfs in `silverblue-main`](https://github.com/ublue-os/main) is 230MB+ whereas this image's initramfs is ~75MB.
-- A first-run GUI that installs Toshy and restores GNOME Flatpak apps that came with Silverblue from [Flathub](https://flathub.org/)Firefox is already included in the image.
+
 
 ## Hardware compatibility
 
@@ -37,7 +38,7 @@ These closely related Intel MacBook Airs are reasonable candidates, but are **un
 | `MacBookAir6,1` | 11-inch, Mid 2013 or Early 2014 | Similar generation; untested |
 | `MacBookAir6,2` | 13-inch, Mid 2013 or Early 2014 | Similar generation; untested |
 | `MacBookAir5,1` | 11-inch, Mid 2012 | Earlier related hardware; least certain |
-| `MacBookAir5,2` | 13-inch, Mid 2012 (`A1466`) | Earlier related chassis; least certain |
+| `MacBookAir5,2` | 13-inch, Mid 2012 | Earlier related chassis; least certain |
 
 Do not assume that other MacBooks or MacBook Pros are compatible. The trimmed initramfs omits drivers and storage features this specific machine does not need.
 

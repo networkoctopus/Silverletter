@@ -14,6 +14,13 @@ install -Dm755 /ctx/post-deploy-setup/post-deploy-setup-launch.sh \
 install -Dm644 /ctx/post-deploy-setup/post-deploy-setup.service \
     /usr/lib/systemd/user/linuxbook-air-post-deploy-setup.service
 
+install -Dm644 /ctx/post-deploy-setup/linuxbook-air-setup.desktop \
+    /usr/share/applications/linuxbook-air-setup.desktop
+
+install -Dm644 /ctx/post-deploy-setup/linuxbook-air-setup.svg \
+    /usr/share/icons/hicolor/scalable/apps/linuxbook-air-setup.svg
+gtk-update-icon-cache -f /usr/share/icons/hicolor
+
 # Enable for all users via systemd user preset / wants symlink
 mkdir -p /usr/lib/systemd/user/graphical-session.target.wants
 ln -sf /usr/lib/systemd/user/linuxbook-air-post-deploy-setup.service \

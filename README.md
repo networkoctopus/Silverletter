@@ -1,4 +1,4 @@
-# LinuxBook-Air
+# LinuxBook-Air <img src="build_files/post-deploy-setup/linuxbook-air-setup.svg" alt="LinuxBook-Air laptop and Tux icon" width="48">
 
 An immutable Fedora GNOME image for Intel MacBook Airs, built on [Universal Blue's `silverblue-main`](https://github.com/ublue-os/main/pkgs/container/silverblue-main). Currently tracking [Fedora 44](https://fedoraproject.org).
 
@@ -82,6 +82,28 @@ Note: GitHub requires you to be signed in to download workflow artifacts.
 > Installing an operating system will erase the selected disk. Back up anything important and carefully confirm the target drive in Anaconda.
 
 On the first login, LinuxBook-Air waits for GNOME Initial Setup to finish, then lets you choose whether to install Toshy, apply the WhiteSur desktop theme with MacTahoe icons and Firefox styling, and restore the standard GNOME Flatpak application set. You can install any combination, postpone setup, or permanently skip it.
+
+Open **LinuxBook-Air Setup** from the application launcher to install or remove optional components later.
+
+### Remove optional first-run components
+
+To remove [Toshy](https://github.com/RedBearAK/Toshy), download a fresh copy and run its official uninstaller:
+
+```bash
+TOSHY_UNINSTALL=$(mktemp -d)
+git clone --depth=1 https://github.com/RedBearAK/Toshy.git "$TOSHY_UNINSTALL/Toshy"
+cd "$TOSHY_UNINSTALL/Toshy"
+./setup_toshy.py uninstall
+cd "$HOME"
+rm -rf "$TOSHY_UNINSTALL"
+```
+
+Close Firefox, then remove the MacTahoe Firefox styling:
+
+```bash
+/usr/share/MacTahoe-gtk-theme/tweaks.sh -f -r
+rm -f ~/.config/mactahoe/.firefox-done
+```
 
 ## Updates
 

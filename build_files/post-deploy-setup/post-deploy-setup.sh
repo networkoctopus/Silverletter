@@ -9,6 +9,9 @@ INSTALL_TOSHY=false
 INSTALL_DESKTOP_THEME=false
 INSTALL_FIREFOX=false
 INSTALL_APPS=false
+REMOVE_TOSHY=false
+REMOVE_FIREFOX=false
+REVERT_DESKTOP_THEME=false
 TOSHY_INSTALLED_NOW=false
 
 # Running without arguments retains the original install-everything behavior.
@@ -24,6 +27,9 @@ else
             --desktop-theme) INSTALL_DESKTOP_THEME=true ;;
             --firefox) INSTALL_FIREFOX=true ;;
             --apps) INSTALL_APPS=true ;;
+            --remove-toshy) REMOVE_TOSHY=true ;;
+            --remove-firefox) REMOVE_FIREFOX=true ;;
+            --revert-desktop-theme) REVERT_DESKTOP_THEME=true ;;
             *) printf 'Unknown setup option: %s\n' "$1" >&2; exit 2 ;;
         esac
         shift
@@ -32,6 +38,7 @@ fi
 
 STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/linuxbook-air"
 DONE_FILE="$STATE_DIR/initial-setup-done"
+SUCCESS_FILE="$STATE_DIR/last-run-success"
 LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/linuxbook-air"
 LOG_FILE="$LOG_DIR/initial-setup.log"
 FIREFOX_SENTINEL="${XDG_CONFIG_HOME:-$HOME/.config}/mactahoe/.firefox-done"
@@ -60,6 +67,7 @@ FLATPAKS=(
 )
 
 mkdir -p "$STATE_DIR" "$LOG_DIR"
+rm -f "$SUCCESS_FILE"
 : > "$LOG_FILE"
 
 progress() {
@@ -116,6 +124,29 @@ if [[ "$INSTALL_TOSHY" == true && ! -f "$TOSHY_CONFIG" ]]; then
     if ! curl --connect-timeout 8 --max-time 15 --silent --show-error --fail \
         --head https://github.com/ >> "$LOG_FILE" 2>&1; then
         fail "No internet connection. Setup will be offered again next login."
+    fi
+fi
+
+if [[ "$REMOVE_TOSHY" == true ]]; then
+    if [[ -f "$TOSHY_CONFIG" ]]; then
+        progress 15 "Downloading the Toshy uninstaller…"
+        TOSHY_REMOVE_TMP=$(mktemp -d)
+        if ! git clone --quiet --depth=1 https://github.com/RedBearAK/Toshy.git \
+            "$TOSHY_REMOVE_TMP/Toshy" >> "$LOG_FILE" 2>&1; then
+            rm -rf "$TOSHY_REMOVE_TMP"
+            fail "The Toshy uninstaller could not be downloaded."
+        fi
+
+        progress 35 "Removing Toshy keyboard remapping…"
+        cd "$TOSHY_REMOVE_TMP/Toshy" || fail "Could not open the Toshy uninstaller."
+        python3 ./setup_toshy.py uninstall
+        TOSHY_REMOVE_STATUS=$?
+        cd "$HOME" || true
+        rm -rf "$TOSHY_REMOVE_TMP"
+        [[ $TOSHY_REMOVE_STATUS -eq 0 ]] || \
+            fail "Toshy could not be removed. Review the output above."
+    else
+        progress 35 "Toshy is not installed for this user."
     fi
 fi
 
@@ -188,6 +219,20 @@ if [[ "$INSTALL_DESKTOP_THEME" == true ]]; then
         fail "The WhiteSur Shell theme could not be applied."
 fi
 
+if [[ "$REVERT_DESKTOP_THEME" == true ]]; then
+    progress 53 "Restoring the default Adwaita desktop appearance…"
+    gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark' || \
+        fail "GNOME dark style could not be restored."
+    gsettings set org.gnome.desktop.interface gtk-theme 'Adwaita-dark' || \
+        fail "The Adwaita GTK theme could not be restored."
+    gsettings set org.gnome.desktop.interface icon-theme 'Adwaita' || \
+        fail "The Adwaita icon theme could not be restored."
+    gsettings set org.gnome.desktop.interface cursor-theme 'Adwaita' || \
+        fail "The Adwaita cursor theme could not be restored."
+    gsettings set org.gnome.shell.extensions.user-theme name '' || \
+        fail "The default GNOME Shell theme could not be restored."
+fi
+
 if [[ "$INSTALL_FIREFOX" == true && ! -f "$FIREFOX_SENTINEL" ]]; then
     progress 55 "Preparing Firefox for MacTahoe styling…"
 
@@ -243,6 +288,31 @@ elif [[ "$INSTALL_FIREFOX" == true ]]; then
     progress 55 "MacTahoe Firefox styling is already installed."
 fi
 
+if [[ "$REMOVE_FIREFOX" == true ]]; then
+    if firefox_profile_initialized; then
+        progress 55 "Removing MacTahoe Firefox styling…"
+        firefox_is_running && confirm_firefox_closed
+
+        FIREFOX_REMOVE_TMP=$(mktemp -d)
+        if ! cp -a "$FIREFOX_REPO/." "$FIREFOX_REMOVE_TMP/" >> "$LOG_FILE" 2>&1; then
+            rm -rf "$FIREFOX_REMOVE_TMP"
+            fail "The MacTahoe Firefox files could not be prepared."
+        fi
+        chmod -R u+rwX "$FIREFOX_REMOVE_TMP"
+
+        cd "$FIREFOX_REMOVE_TMP" || fail "Could not open the MacTahoe Firefox files."
+        ./tweaks.sh -f -r
+        FIREFOX_REMOVE_STATUS=$?
+        cd "$HOME" || true
+        rm -rf "$FIREFOX_REMOVE_TMP"
+        [[ $FIREFOX_REMOVE_STATUS -eq 0 ]] || \
+            fail "MacTahoe Firefox styling could not be removed."
+    else
+        progress 55 "Firefox has no profile to remove styling from."
+    fi
+    rm -f "$FIREFOX_SENTINEL"
+fi
+
 if [[ "$INSTALL_APPS" == true ]]; then
     progress 65 "Checking the default applications…"
     INSTALLED_APPS_OUTPUT=$(flatpak list --app --columns=application 2>> "$LOG_FILE") || \
@@ -267,6 +337,11 @@ if [[ "$INSTALL_APPS" == true ]]; then
 fi
 
 touch "$DONE_FILE"
-progress 100 "Setup complete. The selected components are ready."
+touch "$SUCCESS_FILE"
+if [[ "$REMOVE_TOSHY" == true || "$REMOVE_FIREFOX" == true || "$REVERT_DESKTOP_THEME" == true ]]; then
+    progress 100 "Removal complete. The selected components were removed or reset."
+else
+    progress 100 "Setup complete. The selected components are ready."
+fi
 printf '\nMacTahoe and WhiteSur themes are available in GNOME Tweaks under Appearance.\n'
 wait_to_close

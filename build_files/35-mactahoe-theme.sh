@@ -71,7 +71,10 @@ rm -rf "$WHITESUR_ICON_REPO_DIR"
 WHITESUR_CURSOR_REPO_DIR="/tmp/WhiteSur-cursors"
 git clone --depth=1 https://github.com/vinceliuice/WhiteSur-cursors.git \
     "$WHITESUR_CURSOR_REPO_DIR"
-"$WHITESUR_CURSOR_REPO_DIR/install.sh"
+(
+    cd "$WHITESUR_CURSOR_REPO_DIR"
+    ./install.sh
+)
 test -f /usr/share/icons/WhiteSur-cursors/index.theme
 test -e /usr/share/icons/WhiteSur-cursors/cursors/default
 rm -rf "$WHITESUR_CURSOR_REPO_DIR"

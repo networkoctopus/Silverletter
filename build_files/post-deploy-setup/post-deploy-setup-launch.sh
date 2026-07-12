@@ -23,7 +23,7 @@ done
 CHOICES=$(zenity --list \
     --title="LinuxBook-Air Setup" \
     --window-icon="preferences-system" \
-    --text="<big><b>Welcome to LinuxBook-Air</b></big>\n\nChoose the optional components to set up.\n\nKeyboard remapping is powered by <b>Toshy</b>, created by RedBearAK:\nhttps://github.com/RedBearAK/Toshy" \
+    --text="<big><b>Welcome to LinuxBook-Air</b></big>\n\nChoose the optional components to set up.\n\nKeyboard remapping is powered by <b>Toshy</b>, created by RedBearAK:\nhttps://github.com/RedBearAK/Toshy\n\nMacOS themes are created by <b>vinceliuice</b>:\nhttps://github.com/vinceliuice" \
     --checklist \
     --column="Install" --column="Component" \
     TRUE "Toshy keyboard remapping" \

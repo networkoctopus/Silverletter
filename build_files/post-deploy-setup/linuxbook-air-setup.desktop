@@ -5,5 +5,6 @@ Comment=Install, remove, or reset optional LinuxBook-Air components
 Icon=linuxbook-air-setup
 Exec=/usr/libexec/linuxbook-air-post-deploy-setup-launch.sh --force
 Terminal=false
+StartupNotify=true
 Categories=Settings;System;
 Keywords=LinuxBook;Toshy;theme;Firefox;setup;remove;reset;

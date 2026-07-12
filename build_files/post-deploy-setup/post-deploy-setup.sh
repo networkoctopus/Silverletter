@@ -96,6 +96,12 @@ firefox_profile_initialized() {
         [[ -s "${XDG_CONFIG_HOME:-$HOME/.config}/mozilla/firefox/profiles.ini" ]]
 }
 
+toshy_is_installed() {
+    [[ -x "$HOME/.local/bin/toshy-services-status" ]] || \
+        [[ -f "$HOME/.config/systemd/user/toshy-config.service" ]] || \
+        [[ -f "$HOME/.config/systemd/user/toshy-session-monitor.service" ]]
+}
+
 confirm_firefox_closed() {
     printf '\nClose every Firefox window, then press Enter to continue.\n'
     read -r -p "Firefox is closed: press Enter… " || true
@@ -119,7 +125,7 @@ confirm_firefox_closed() {
     firefox_is_running && fail "Firefox could not be stopped."
 }
 
-if [[ "$INSTALL_TOSHY" == true && ! -f "$TOSHY_CONFIG" ]]; then
+if [[ "$INSTALL_TOSHY" == true ]] && ! toshy_is_installed; then
     progress 5 "Checking internet access for Toshy…"
     if ! curl --connect-timeout 8 --max-time 15 --silent --show-error --fail \
         --head https://github.com/ >> "$LOG_FILE" 2>&1; then
@@ -128,7 +134,7 @@ if [[ "$INSTALL_TOSHY" == true && ! -f "$TOSHY_CONFIG" ]]; then
 fi
 
 if [[ "$REMOVE_TOSHY" == true ]]; then
-    if [[ -f "$TOSHY_CONFIG" ]]; then
+    if toshy_is_installed; then
         progress 15 "Downloading the Toshy uninstaller…"
         TOSHY_REMOVE_TMP=$(mktemp -d)
         if ! git clone --quiet --depth=1 https://github.com/RedBearAK/Toshy.git \
@@ -145,12 +151,14 @@ if [[ "$REMOVE_TOSHY" == true ]]; then
         rm -rf "$TOSHY_REMOVE_TMP"
         [[ $TOSHY_REMOVE_STATUS -eq 0 ]] || \
             fail "Toshy could not be removed. Review the output above."
+        toshy_is_installed && \
+            fail "Toshy's uninstaller finished, but installed components remain."
     else
         progress 35 "Toshy is not installed for this user."
     fi
 fi
 
-if [[ "$INSTALL_TOSHY" == true && ! -f "$TOSHY_CONFIG" ]]; then
+if [[ "$INSTALL_TOSHY" == true ]] && ! toshy_is_installed; then
     progress 15 "Downloading Toshy…"
     TOSHY_TMP=$(mktemp -d)
     trap 'rm -rf "$TOSHY_TMP"' EXIT
@@ -171,6 +179,8 @@ if [[ "$INSTALL_TOSHY" == true && ! -f "$TOSHY_CONFIG" ]]; then
     TOSHY_STATUS=$?
     [[ $TOSHY_STATUS -eq 0 ]] || \
         fail "Toshy installation failed. Review the output above."
+    toshy_is_installed || \
+        fail "Toshy's installer finished without creating its commands or services."
     TOSHY_INSTALLED_NOW=true
 elif [[ "$INSTALL_TOSHY" == true ]]; then
     progress 45 "Toshy is already installed."

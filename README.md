@@ -88,26 +88,6 @@ On the first login, LinuxBook-Air waits for GNOME Initial Setup to finish, then 
 
 Open **LinuxBook-Air Setup** from the application launcher to install or remove optional components later.
 
-### Remove optional first-run components
-
-To remove [Toshy](https://github.com/RedBearAK/Toshy), download a fresh copy and run its official uninstaller:
-
-```bash
-TOSHY_UNINSTALL=$(mktemp -d)
-git clone --depth=1 https://github.com/RedBearAK/Toshy.git "$TOSHY_UNINSTALL/Toshy"
-cd "$TOSHY_UNINSTALL/Toshy"
-./setup_toshy.py uninstall
-cd "$HOME"
-rm -rf "$TOSHY_UNINSTALL"
-```
-
-Close Firefox, then remove the MacTahoe Firefox styling:
-
-```bash
-/usr/share/MacTahoe-gtk-theme/tweaks.sh -f -r
-rm -f ~/.config/mactahoe/.firefox-done
-```
-
 ## Updates
 
 The bootc image is rebuilt **twice weekly**, every Wednesday and Sunday. Manual builds may also appear in the Actions history.

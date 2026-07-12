@@ -96,6 +96,9 @@ disable-user-extensions=false
 [org/gnome/shell/extensions/uupd-indicator]
 visibility-mode='auto'
 show-reboot-required=true
+
+[org/gnome/shell/extensions/dash-to-dock]
+transparency-mode='DYNAMIC'
 EOF
 
 dconf update

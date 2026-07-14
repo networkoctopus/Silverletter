@@ -1,11 +1,16 @@
 # Allow build scripts to be referenced without being copied into the final image
+ARG FEDORA_VERSION=44
+
 FROM scratch AS ctx
 COPY build_files /
 
-FROM ghcr.io/ublue-os/silverblue-main:44
+FROM ghcr.io/ublue-os/akmods:main-${FEDORA_VERSION} AS akmods
+
+FROM ghcr.io/ublue-os/silverblue-main:${FEDORA_VERSION}
+ARG FEDORA_VERSION
 
 ### KMODS (broadcom-wl + facetimehd)
-COPY --from=ghcr.io/ublue-os/akmods:main-44 / /var/tmp/akmods-common
+COPY --from=akmods / /var/tmp/akmods-common
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=cache,dst=/var/cache \
     --mount=type=cache,dst=/var/log \

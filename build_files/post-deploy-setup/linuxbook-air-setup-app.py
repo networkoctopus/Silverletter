@@ -121,8 +121,9 @@ class SetupWindow(Gtk.ApplicationWindow):
         page.append(self.heading("Welcome to LinuxBook-Air"))
         page.append(self.body(
             "Choose the optional components to set up. You can install, remove, or reset them later "
-            "by opening Setup from the application launcher. GNOME Flatpak applications can be "
-            "uninstalled in GNOME Software.\n\n"
+            "by opening Setup from the application launcher. Default GNOME Flatpaks can be restored, "
+            "and existing Flatpaks from other repositories can be replaced when Flathub provides an "
+            "equivalent. They can be uninstalled in GNOME Software.\n\n"
             "<b>Setup works best when all other users are logged out, as Firefox running in another "
             "user session may prevent Firefox styling from being applied.</b>",
             markup=True,
@@ -132,7 +133,13 @@ class SetupWindow(Gtk.ApplicationWindow):
             "--toshy": Gtk.CheckButton(label="Toshy keyboard remapping"),
             "--desktop-theme": Gtk.CheckButton(label="MacOS desktop theme and icons"),
             "--firefox": Gtk.CheckButton(label="MacOS Firefox styling"),
-            "--apps": Gtk.CheckButton(label="GNOME Flatpak applications"),
+            "--apps": Gtk.CheckButton(label="Restore default GNOME Flatpaks"),
+            "--replace-flatpaks": Gtk.CheckButton(
+                label=(
+                    "Replace existing Flatpaks with Flathub equivalents "
+                    "(user data won't be removed)"
+                )
+            ),
         }
         for check in self.install_checks.values():
             check.set_active(True)
@@ -262,6 +269,16 @@ class SetupWindow(Gtk.ApplicationWindow):
             notes.append(
                 "Close Firefox before continuing. If it has never been opened, setup may open it "
                 "once to initialise its profile; close it again after it loads."
+            )
+        if "--apps" in arguments:
+            notes.append(
+                "Missing default GNOME applications will be installed from Flathub."
+            )
+        if "--replace-flatpaks" in arguments:
+            notes.append(
+                "Installed system Flatpaks from other repositories will be replaced when the same "
+                "application ID is available on Flathub. User data and saved permissions won't be "
+                "removed."
             )
         self._prepare_run(arguments, "install", "\n\n".join(notes), "Start setup")
 

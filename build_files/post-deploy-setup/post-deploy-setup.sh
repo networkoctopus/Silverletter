@@ -9,6 +9,7 @@ INSTALL_TOSHY=false
 INSTALL_DESKTOP_THEME=false
 INSTALL_FIREFOX=false
 INSTALL_APPS=false
+REPLACE_FLATPAKS=false
 REMOVE_TOSHY=false
 REMOVE_FIREFOX=false
 REVERT_DESKTOP_THEME=false
@@ -20,6 +21,7 @@ if (( $# == 0 )); then
     INSTALL_DESKTOP_THEME=true
     INSTALL_FIREFOX=true
     INSTALL_APPS=true
+    REPLACE_FLATPAKS=true
 else
     while (( $# )); do
         case "$1" in
@@ -27,6 +29,7 @@ else
             --desktop-theme) INSTALL_DESKTOP_THEME=true ;;
             --firefox) INSTALL_FIREFOX=true ;;
             --apps) INSTALL_APPS=true ;;
+            --replace-flatpaks) REPLACE_FLATPAKS=true ;;
             --remove-toshy) REMOVE_TOSHY=true ;;
             --remove-firefox) REMOVE_FIREFOX=true ;;
             --revert-desktop-theme) REVERT_DESKTOP_THEME=true ;;
@@ -45,26 +48,18 @@ FIREFOX_SENTINEL="${XDG_CONFIG_HOME:-$HOME/.config}/mactahoe/.firefox-done"
 FIREFOX_REPO="/usr/share/MacTahoe-gtk-theme"
 TOSHY_CONFIG="$HOME/.config/toshy/toshy_config.py"
 
-FLATPAKS=(
-    org.gnome.Calculator
-    org.gnome.Calendar
-    org.gnome.Characters
-    org.gnome.Connections
-    org.gnome.Contacts
-    org.gnome.Evolution
-    org.gnome.Extensions
-    org.gnome.Logs
-    org.gnome.Loupe
-    org.gnome.Maps
-    org.gnome.NautilusPreviewer
-    org.gnome.Papers
-    org.gnome.Snapshot
-    org.gnome.TextEditor
-    org.gnome.Weather
-    org.gnome.baobab
-    org.gnome.clocks
-    org.gnome.font-viewer
-)
+FLATPAKS=()
+if [[ "$INSTALL_APPS" == true ]]; then
+    FLATPAKS_FILE="${LINUXBOOK_AIR_FLATPAKS_FILE:-/usr/share/linuxbook-air/default-flatpaks.txt}"
+    if [[ ! -r "$FLATPAKS_FILE" ]]; then
+        FLATPAKS_FILE="$(dirname "${BASH_SOURCE[0]}")/default-flatpaks.txt"
+    fi
+    if [[ ! -s "$FLATPAKS_FILE" ]]; then
+        printf 'Default Flatpak list is missing or empty: %s\n' "$FLATPAKS_FILE" >&2
+        exit 1
+    fi
+    mapfile -t FLATPAKS < "$FLATPAKS_FILE"
+fi
 
 mkdir -p "$STATE_DIR" "$LOG_DIR"
 rm -f "$SUCCESS_FILE"
@@ -324,26 +319,71 @@ if [[ "$REMOVE_FIREFOX" == true ]]; then
     rm -f "$FIREFOX_SENTINEL"
 fi
 
-if [[ "$INSTALL_APPS" == true ]]; then
-    progress 65 "Checking the default applications…"
-    INSTALLED_APPS_OUTPUT=$(flatpak list --app --columns=application 2>> "$LOG_FILE") || \
+if [[ "$INSTALL_APPS" == true || "$REPLACE_FLATPAKS" == true ]]; then
+    progress 65 "Checking the installed Flatpak applications…"
+    INSTALLED_APPS_OUTPUT=$(flatpak list --system --app \
+        --columns=application,origin 2>> "$LOG_FILE") || \
         fail "The installed Flatpak applications could not be checked. See $LOG_FILE"
-    mapfile -t INSTALLED_APPS <<< "$INSTALLED_APPS_OUTPUT"
+    declare -A INSTALLED_APPS=()
+    declare -A APP_ORIGINS=()
+    while IFS=$'\t' read -r app origin; do
+        [[ -n "$app" ]] || continue
+        INSTALLED_APPS["$app"]=true
+        APP_ORIGINS["$app"]="$origin"
+    done <<< "$INSTALLED_APPS_OUTPUT"
+fi
+
+if [[ "$INSTALL_APPS" == true ]]; then
     MISSING_APPS=()
     for app in "${FLATPAKS[@]}"; do
-        if ! printf '%s\n' "${INSTALLED_APPS[@]}" | grep -Fxq "$app"; then
+        if [[ -z "${INSTALLED_APPS[$app]+present}" ]]; then
             MISSING_APPS+=("$app")
         fi
     done
 
     if (( ${#MISSING_APPS[@]} )); then
         progress 75 "Restoring ${#MISSING_APPS[@]} default GNOME applications from Flathub…"
-        if ! flatpak install --noninteractive --assumeyes flathub \
+        if ! flatpak install --system --noninteractive --assumeyes flathub \
             "${MISSING_APPS[@]}" >> "$LOG_FILE" 2>&1; then
             fail "Some default applications could not be installed. See $LOG_FILE"
         fi
     else
-        progress 90 "All default applications are already installed."
+        progress 80 "All default GNOME Flatpaks are already installed."
+    fi
+fi
+
+if [[ "$REPLACE_FLATPAKS" == true ]]; then
+    progress 82 "Finding Flathub equivalents for installed applications…"
+    FLATHUB_APPS_OUTPUT=$(flatpak remote-ls --system --app \
+        --columns=application flathub 2>> "$LOG_FILE") || \
+        fail "The applications available from Flathub could not be checked. See $LOG_FILE"
+    declare -A FLATHUB_APPS=()
+    while IFS= read -r app; do
+        [[ -n "$app" ]] && FLATHUB_APPS["$app"]=true
+    done <<< "$FLATHUB_APPS_OUTPUT"
+
+    APPS_TO_REPLACE=()
+    for app in "${!INSTALLED_APPS[@]}"; do
+        if [[ "${APP_ORIGINS[$app]}" != flathub && \
+            -n "${FLATHUB_APPS[$app]+present}" ]]; then
+            APPS_TO_REPLACE+=("$app")
+        fi
+    done
+
+    if (( ${#APPS_TO_REPLACE[@]} )); then
+        progress 88 "Replacing ${#APPS_TO_REPLACE[@]} Flatpak applications with Flathub equivalents…"
+        # Deliberately omit --delete-data so ~/.var/app data and saved
+        # permissions survive the switch to the Flathub version.
+        if ! flatpak uninstall --system --app --noninteractive --assumeyes \
+            "${APPS_TO_REPLACE[@]}" >> "$LOG_FILE" 2>&1; then
+            fail "Some Flatpak applications could not be removed for replacement. See $LOG_FILE"
+        fi
+        if ! flatpak install --system --app --noninteractive --assumeyes \
+            flathub "${APPS_TO_REPLACE[@]}" >> "$LOG_FILE" 2>&1; then
+            fail "Some Flatpak applications were removed but could not be reinstalled. See $LOG_FILE"
+        fi
+    else
+        progress 90 "No installed Flatpaks need replacing."
     fi
 fi
 

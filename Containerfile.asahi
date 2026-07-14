@@ -1,8 +1,11 @@
 # Allow build scripts to be referenced without being copied into the final image
+ARG FEDORA_VERSION=44
+
 FROM scratch AS ctx
 COPY build_files /
 
-FROM quay.io/fedora-asahi-remix-atomic-desktops/silverblue:44
+FROM quay.io/fedora-asahi-remix-atomic-desktops/silverblue:${FEDORA_VERSION}
+ARG FEDORA_VERSION
 
 ### SHARED DESKTOP CUSTOMISATIONS
 # Apple Silicon hardware support, power configuration, fixes, and initramfs are

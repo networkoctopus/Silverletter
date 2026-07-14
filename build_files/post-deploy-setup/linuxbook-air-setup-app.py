@@ -38,7 +38,6 @@ class SetupWindow(Gtk.ApplicationWindow):
         self._build_manage_page()
         self._build_install_page()
         self._build_remove_page()
-        self._build_skip_page()
         self._build_warning_page()
         self._build_terminal_page()
         self._build_result_page()
@@ -153,11 +152,23 @@ class SetupWindow(Gtk.ApplicationWindow):
         )
         page.append(credits)
 
+        if not self.force_run:
+            self.dont_open_check = Gtk.CheckButton(label="Don't open this again")
+            self.dont_open_check.connect("toggled", self._toggle_dont_open_again)
+            page.append(self.dont_open_check)
+
+            self.dont_open_hint = self.body(
+                "<small>You can rerun Setup anytime from the GNOME Activities overview.</small>",
+                markup=True,
+            )
+            self.dont_open_hint.set_visible(False)
+            page.append(self.dont_open_hint)
+
         row = self.button_row()
         if self.force_run:
             row.append(self.button("Back", lambda _b: self.show_page("manage")))
         else:
-            row.append(self.button("Not now", lambda _b: self._not_now()))
+            row.append(self.button("Not now", lambda _b: self.close()))
         row.append(self.button("Install selected", lambda _b: self._prepare_install(), True))
         page.append(row)
         self.add_page("install", page)
@@ -183,17 +194,6 @@ class SetupWindow(Gtk.ApplicationWindow):
         row.append(self.button("Remove selected", lambda _b: self._prepare_remove(), True))
         page.append(row)
         self.add_page("remove", page)
-
-    def _build_skip_page(self) -> None:
-        page = self.page_box()
-        page.append(self.heading("Skip LinuxBook-Air Setup?"))
-        page.append(self.body("No components were selected. Stop offering this setup on future logins?"))
-        row = self.button_row()
-        row.append(self.button("Back", lambda _b: self.show_page("install")))
-        row.append(self.button("Remind me later", lambda _b: self.close()))
-        row.append(self.button("Skip permanently", lambda _b: self._skip_permanently(), True))
-        page.append(row)
-        self.add_page("skip", page)
 
     def _build_warning_page(self) -> None:
         page = self.page_box()
@@ -240,15 +240,13 @@ class SetupWindow(Gtk.ApplicationWindow):
     def _selected(self, checks: dict[str, Gtk.CheckButton]) -> list[str]:
         return [argument for argument, check in checks.items() if check.get_active()]
 
-    def _not_now(self) -> None:
-        if self._selected(self.install_checks):
-            self.close()
+    def _toggle_dont_open_again(self, check: Gtk.CheckButton) -> None:
+        skip = check.get_active()
+        self.dont_open_hint.set_visible(skip)
+        if skip:
+            self.skip_file.touch()
         else:
-            self.show_page("skip")
-
-    def _skip_permanently(self) -> None:
-        self.skip_file.touch()
-        self.close()
+            self.skip_file.unlink(missing_ok=True)
 
     def _prepare_install(self) -> None:
         arguments = self._selected(self.install_checks)
@@ -256,7 +254,7 @@ class SetupWindow(Gtk.ApplicationWindow):
             if self.force_run:
                 self.show_page("manage")
             else:
-                self.show_page("skip")
+                self.close()
             return
 
         notes = ["The installation output will appear in this window."]

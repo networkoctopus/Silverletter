@@ -64,12 +64,18 @@ else
     fail "acpi_osi=!Darwin is NOT in /proc/cmdline"
 fi
 
+if grep -q 'pci=hpbussize=8' /proc/cmdline; then
+    pass "pci=hpbussize=8 is active (Thunderbolt hot-plug bus space reserved)"
+else
+    fail "pci=hpbussize=8 is NOT in /proc/cmdline"
+fi
+
 info "Full cmdline: $(cat /proc/cmdline)"
 
-if [[ -f /usr/lib/bootc/kargs.d/im-not-macos.toml ]]; then
-    pass "kargs.d toml exists: $(cat /usr/lib/bootc/kargs.d/im-not-macos.toml)"
+if [[ -f /usr/lib/bootc/kargs.d/linuxbook-air.toml ]]; then
+    pass "kargs.d toml exists: $(cat /usr/lib/bootc/kargs.d/linuxbook-air.toml)"
 else
-    fail "kargs.d toml missing at /usr/lib/bootc/kargs.d/im-not-macos.toml"
+    fail "kargs.d toml missing at /usr/lib/bootc/kargs.d/linuxbook-air.toml"
 fi
 
 # ─── 2. CONFIG FILES ───────────────────────────────────────────────────────
@@ -78,6 +84,9 @@ header "Config Files"
 FILES=(
     "/usr/lib/modprobe.d/thunderbolt-blacklist.conf"
     "/usr/lib/udev/rules.d/99-thunderbolt-pm.rules"
+    "/usr/libexec/linuxbook-air-thunderbolt-control"
+    "/usr/share/polkit-1/actions/io.github.networkoctopus.linuxbookair.thunderbolt.policy"
+    "/usr/share/gnome-shell/extensions/thunderbolt@linuxbook-air.local/extension.js"
     "/usr/lib/NetworkManager/conf.d/default-wifi-powersave-on.conf"
     "/usr/lib/systemd/system/powertop.service"
     "/usr/lib/systemd/system/aspm-tune.service"
@@ -96,31 +105,57 @@ done
 # ─── 3. THUNDERBOLT ────────────────────────────────────────────────────────
 header "Thunderbolt"
 
-if lsmod | grep -q thunderbolt; then
-    fail "thunderbolt module is LOADED (blacklist not effective)"
+TB_ENABLED=0
+if [[ -e /run/linuxbook-air/thunderbolt-enabled ]]; then
+    TB_ENABLED=1
+    info "Temporary Thunderbolt enable is active"
+fi
+
+if lsmod | grep -q '^thunderbolt '; then
+    if [[ $TB_ENABLED -eq 1 ]]; then
+        pass "thunderbolt module is loaded by the temporary enable control"
+    else
+        fail "thunderbolt module is LOADED without the temporary enable marker"
+    fi
 else
-    pass "thunderbolt module not loaded"
+    if [[ $TB_ENABLED -eq 1 ]]; then
+        fail "temporary enable marker exists but thunderbolt module is not loaded"
+    else
+        pass "thunderbolt module not loaded"
+    fi
 fi
 
 if grep -q 'install thunderbolt /bin/false' /usr/lib/modprobe.d/thunderbolt-blacklist.conf 2>/dev/null; then
-    pass "Hard block (install /bin/false) present"
+    fail "Hard block (install thunderbolt /bin/false) prevents temporary enable"
 elif grep -q 'blacklist thunderbolt' /usr/lib/modprobe.d/thunderbolt-blacklist.conf 2>/dev/null; then
-    warn "Only soft blacklist present — consider adding: install thunderbolt /bin/false"
+    pass "Soft blacklist present (automatic load blocked; explicit enable permitted)"
 else
     fail "thunderbolt-blacklist.conf missing or empty"
 fi
 
 # Thunderbolt PCIe devices runtime PM
 header "Thunderbolt PCIe Runtime PM"
-TB_DEVS=("0000:05:00.0" "0000:06:00.0" "0000:06:03.0" "0000:06:04.0" "0000:06:05.0")
+TB_DEVS=(
+    "0000:05:00.0"
+    "0000:06:00.0"
+    "0000:06:03.0"
+    "0000:06:04.0"
+    "0000:06:05.0"
+    "0000:06:06.0"
+    "0000:07:00.0"
+)
 for dev in "${TB_DEVS[@]}"; do
     if [[ -e "/sys/bus/pci/devices/$dev" ]]; then
         ctrl=$(cat /sys/bus/pci/devices/$dev/power/control 2>/dev/null)
         status=$(cat /sys/bus/pci/devices/$dev/power/runtime_status 2>/dev/null)
-        if [[ "$ctrl" == "auto" ]]; then
+        if [[ $TB_ENABLED -eq 1 && "$ctrl" == "on" ]]; then
+            pass "$dev — control=$ctrl status=$status (temporarily enabled)"
+        elif [[ $TB_ENABLED -eq 0 && "$ctrl" == "auto" ]]; then
             pass "$dev — control=$ctrl status=$status"
         else
-            fail "$dev — control=$ctrl (expected auto) status=$status"
+            expected="auto"
+            [[ $TB_ENABLED -eq 1 ]] && expected="on"
+            fail "$dev — control=$ctrl (expected $expected) status=$status"
         fi
     else
         info "$dev — not present on PCIe bus (expected if TB fully off)"
@@ -215,26 +250,34 @@ fi
 # ─── 7. PCIe RUNTIME PM ────────────────────────────────────────────────────
 header "PCIe Runtime PM Summary"
 
-total=0; auto=0; suspended=0; active_count=0
+total=0; auto=0; intentional_on=0; suspended=0; active_count=0
 while IFS= read -r dev; do
     addr=$(basename "$dev")
     ctrl=$(cat "$dev/power/control" 2>/dev/null)
     status=$(cat "$dev/power/runtime_status" 2>/dev/null)
     total=$((total+1))
     [[ "$ctrl" == "auto" ]] && auto=$((auto+1))
+    if [[ $TB_ENABLED -eq 1 && "$ctrl" == "on" && "$(readlink -f "$dev")" == *"/0000:05:00.0"* ]]; then
+        intentional_on=$((intentional_on+1))
+    fi
     [[ "$status" == "suspended" ]] && suspended=$((suspended+1))
     [[ "$status" == "active" ]] && active_count=$((active_count+1))
 done < <(find /sys/bus/pci/devices -maxdepth 1 -mindepth 1)
 
 info "Total PCIe devices: $total"
 info "Runtime PM auto:    $auto / $total"
+[[ $intentional_on -gt 0 ]] && info "Thunderbolt forced on: $intentional_on (temporary enable)"
 info "Currently suspended: $suspended"
 info "Currently active:    $active_count"
 
-if [[ "$auto" == "$total" ]]; then
-    pass "All devices have runtime PM set to auto"
+if [[ $((auto+intentional_on)) -eq $total ]]; then
+    if [[ $intentional_on -gt 0 ]]; then
+        pass "All non-Thunderbolt devices use runtime PM auto"
+    else
+        pass "All devices have runtime PM set to auto"
+    fi
 else
-    warn "$((total-auto)) device(s) not set to auto runtime PM"
+    warn "$((total-auto-intentional_on)) unexpected device(s) not set to auto runtime PM"
 fi
 
 # List any non-auto devices
@@ -243,7 +286,11 @@ for dev in /sys/bus/pci/devices/*; do
     ctrl=$(cat "$dev/power/control" 2>/dev/null)
     if [[ "$ctrl" != "auto" ]]; then
         name=$(lspci -s "$addr" 2>/dev/null | cut -d' ' -f3-)
-        fail "  $addr — control=$ctrl — $name"
+        if [[ $TB_ENABLED -eq 1 && "$ctrl" == "on" && "$(readlink -f "$dev")" == *"/0000:05:00.0"* ]]; then
+            info "  $addr — control=$ctrl — $name (temporary Thunderbolt enable)"
+        else
+            fail "  $addr — control=$ctrl — $name"
+        fi
     fi
 done
 

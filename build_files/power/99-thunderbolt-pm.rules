@@ -5,9 +5,11 @@
 # The script is locked so only one instance runs despite multiple add events.
 
 ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x156b", \
+    TEST!="/run/linuxbook-air/thunderbolt-enabled", \
     RUN+="/usr/libexec/tb-powerdown.sh"
 
 ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x156a", \
+    TEST!="/run/linuxbook-air/thunderbolt-enabled", \
     RUN+="/usr/libexec/tb-powerdown.sh"
 
 # Enable power management for Thunderbolt controllers and ports

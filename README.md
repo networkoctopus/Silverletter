@@ -3,16 +3,13 @@
   Silverletter
 </h1>
 
-**A four-watt love letter to old hardware.**
+**A love letter to old hardware, delivered as a bootc image**
 
-Silverletter is an independently produced bootc image based on [Universal Blue's `silverblue-main`](https://github.com/ublue-os/main/pkgs/container/silverblue-main) and Fedora Atomic Desktop technology. It is intended for selected Intel-based MacBook Air computers and currently tracks [Fedora 44](https://fedoraproject.org).
+Silverletter is based on [Universal Blue's `silverblue-main`](https://github.com/ublue-os/main/pkgs/container/silverblue-main) and Fedora Silverblue. It is intended for selected Intel-based MacBook Air computers and currently tracks [Fedora 44](https://fedoraproject.org).
 
 This project began as a playground for bootc and the excellent [Universal Blue image-template](https://github.com/ublue-os/image-template). Instead of repeatedly layering the packages my old laptop needed onto stock Silverblue, I built a complete image around them. It became my daily driver in early 2026 and eventually felt worth sharing.
 
 More than anything, Silverletter is a love letter to my 11-year-old, 11-inch laptop: a reliable out-of-box GNOME system with the necessary drivers included, kept close to its upstream base, and carefully tuned to **maximise battery life**.
-
-> [!NOTE]
-> Silverletter is an independent community project. It is not affiliated with, sponsored by, or endorsed by Apple Inc., Intel Corporation, Red Hat, the Fedora Project, Universal Blue, or the Asahi Linux project.
 
 At 50% display brightness with Wi-Fi enabled and no apps open, my machine draws around **4–4.5 W**, or roughly 10 hours of battery life (if you aren't doing anything else, of course :P).  Not that I use my machine this way, but for reference - with auto-brightness off and brightness at minimum, power usage drops to **3.3–3.5 W!**  Battery condition, open apps, Wi-Fi usage, peripherals, and exact hardware all contribute.
 
@@ -96,15 +93,13 @@ Note: GitHub requires you to be signed in to download workflow artifacts.
 
 ## Updating
 
-The x86 `latest` image is rebuilt from `main` after pushes and **twice weekly**, every Wednesday and Sunday. Pushes to the `testing` branch do not trigger a build. To publish an x86 test image, manually run the **Build container image** workflow from `testing`, select the x86 variant, enable publishing, and leave the tag as `testing`. This publishes `ghcr.io/networkoctopus/silverletter:testing`.
-
-Asahi builds are also manual only and publish separately as `ghcr.io/networkoctopus/silverletter-asahi:testing` when run with the Asahi variant.
+The x86 `latest` image is rebuilt from `main` after pushes and **twice weekly**, every Wednesday and Sunday. 
 
 `uupd` checks for and stages operating-system and Flatpak updates automatically. The panel indicator shows update activity and tells you when a reboot is needed to enter the staged deployment. GNOME Software updates are disabled because `uupd` handles them.
 
 ## Check the x86 power tuning
 
-The x86 image includes a diagnostic script that checks the power configuration and reports tunables that are active, missing, or unexpected:
+The image includes a diagnostic script that checks the power configuration and reports tunables that are active, missing, or unexpected:
 
 ```bash
 sudo power-audit.sh
@@ -136,10 +131,6 @@ sudo nmcli connection reload
 sudo systemctl restart NetworkManager
 ```
 
-## To do
-
-- Add an option to the Setup app to toggle all power tunings
-
 ## Disclaimer
 
 Have fun, but there are no warranties. This personal project is shared in the hope that it is useful. It makes deliberate hardware trade-offs, has only been validated on the test machine, and may fail to boot or work correctly elsewhere. Keep backups and know how to select an earlier deployment before experimenting.
@@ -147,6 +138,8 @@ Have fun, but there are no warranties. This personal project is shared in the ho
 Silverletter is not provided or supported by Apple, Intel, Red Hat, the Fedora Project, Universal Blue, or the Asahi Linux project. Official Fedora software is available from the [Fedora Project](https://fedoraproject.org/).
 
 Apple, Mac, MacBook Air, MacBook Pro, macOS, and Apple silicon are trademarks of Apple Inc. Intel and Thunderbolt are trademarks of Intel Corporation or its subsidiaries. Fedora is a trademark of Red Hat, Inc. Linux® is the registered trademark of Linus Torvalds in the U.S. and other countries.
+
+
 
 ## Experimental Apple silicon build using Fedora Asahi Remix
 
@@ -171,4 +164,3 @@ sudo systemctl reboot
 
 After rebooting, verify the deployment with `sudo bootc status`.
 
-The x86 build runs on an x86-64 runner using `Containerfile`; the Asahi build runs natively on an ARM64 runner using `Containerfile.asahi`. Asahi is never built by the schedule or a normal push. To publish a test build, open the **Build container image** workflow in GitHub Actions, choose **Run workflow**, select the `testing` branch and the Asahi variant, enable **Publish the built images to GHCR**, and leave the tag as `testing`.

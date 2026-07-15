@@ -13,7 +13,7 @@ This began as a playground for bootc using the excellent [Universal Blue image-t
 
 ## What's in this image - credits to the maintainers of these projects
 
-- A mostly stock Fedora GNOME experience on Universal Blue's [`silverblue-main`](https://github.com/ublue-os/main), delivered as a [bootc](https://github.com/bootc-dev/bootc) image
+- A mostly stock Fedora GNOME experience on Universal Blue's [`silverblue-main`](https://github.com/ublue-os/main)
 - Broadcom Wi-Fi from [Universal Blue akmods](https://github.com/ublue-os/akmods), plus the [FaceTime HD driver](https://github.com/patjak/facetimehd) and [firmware extractor](https://github.com/patjak/facetimehd-firmware), baked in
 - PCIe ASPM tuning, firmware compatibility tweaks, and a MacBook Air display wake fix, Automatic [PowerTOP](https://github.com/fenrus75/powertop) tuning, Wi-Fi power saving 
 - A smaller, hardware-focused initramfs that reduced boot time from ~40 to ~25 seconds on my machine. The initramfs in [`silverblue-main`](https://github.com/ublue-os/main) is ~230MB+ whereas this image's initramfs is ~75MB. Since updates occur on restart, I figured the faster boot was worth pursuing. 
@@ -22,7 +22,7 @@ This began as a playground for bootc using the excellent [Universal Blue image-t
 - [mbpfan](https://github.com/linux-on-mac/mbpfan) for MacBook fan control
 - [uupd](https://github.com/ublue-os/uupd) automatic image and Flatpak updates
 - GNOME extensions installed and enabled system-wide: [AppIndicator and KStatusNotifierItem Support](https://extensions.gnome.org/extension/615/appindicator-support/), [Xremap](https://extensions.gnome.org/extension/5060/xremap/), [Vitals](https://extensions.gnome.org/extension/1460/vitals/), [User Themes](https://extensions.gnome.org/extension/19/user-themes/), [Dash to Dock](https://extensions.gnome.org/extension/307/dash-to-dock/), and the [uupd Indicator](https://github.com/Vyachean/uupd-indicator) with restart-required notifications
-- A top-bar Thunderbolt status indicator for the automatic power-saving and hotplug support
+- A top-bar Thunderbolt status indicator (to remind you its currently in use*)
 - [WhiteSur GTK, Shell, and GDM styling](https://github.com/vinceliuice/WhiteSur-gtk-theme), selectable [WhiteSur icons](https://github.com/vinceliuice/WhiteSur-icon-theme), [WhiteSur cursors](https://github.com/vinceliuice/WhiteSur-cursors), and [MacTahoe icons and cursors](https://github.com/vinceliuice/MacTahoe-icon-theme), optional [MacTahoe Firefox CSS](https://github.com/vinceliuice/MacTahoe-gtk-theme), and MacTahoe day/night wallpapers that follow dark mode, with the day image also used by GDM
 
 ## Hardware compatibility

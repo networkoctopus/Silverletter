@@ -84,19 +84,20 @@ class ThunderboltIndicator extends PanelMenu.Button {
     }
 
     _setState(state) {
-        const drawingPower = state !== 'disabled';
+        const adapterPresent = state === 'enabled';
+        const warning = state === 'powerdown-incomplete';
 
         this._state = state;
-        this._icon.set_style(`color: ${drawingPower ? ENABLED_COLOR : DISABLED_COLOR};`);
+        this._icon.set_style(`color: ${adapterPresent || warning ? ENABLED_COLOR : DISABLED_COLOR};`);
 
         if (state === 'enabled') {
             this._statusItem.label.text = 'Thunderbolt is in use';
             this._powerItem.label.text = 'Active until suspend or reboot';
             this.accessible_name = 'Thunderbolt in use';
-        } else if (state === 'activating') {
-            this._statusItem.label.text = 'Thunderbolt adapter detected';
-            this._powerItem.label.text = 'Activating automatically…';
-            this.accessible_name = 'Thunderbolt activating';
+        } else if (state === 'ready') {
+            this._statusItem.label.text = 'Thunderbolt is ready';
+            this._powerItem.label.text = 'Connect an adapter to use it';
+            this.accessible_name = 'Thunderbolt ready for an adapter';
         } else if (state === 'powerdown-incomplete') {
             this._statusItem.label.text = 'Thunderbolt power-down is incomplete';
             this._powerItem.label.text = 'Maximum power saving is not active';
@@ -144,7 +145,7 @@ class ThunderboltIndicator extends PanelMenu.Button {
             if (this._destroyed)
                 return;
 
-            if (successful && ['enabled', 'disabled', 'activating', 'powerdown-incomplete'].includes(stdout))
+            if (successful && ['enabled', 'disabled', 'ready', 'powerdown-incomplete'].includes(stdout))
                 this._setState(stdout);
             else if (!successful && stderr)
                 console.error(`Thunderbolt status failed: ${stderr}`);

@@ -31,6 +31,13 @@ ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x156a",
 ACTION=="add", SUBSYSTEM=="pci", KERNELS=="0000:06:03.0", \
     TEST=="/run/linuxbook-air/thunderbolt-enabled", ATTR{power/control}="on"
 
+# Removal is informational only. Keep the session armed for efficient
+# reconnection, but tell the GNOME indicator to refresh after the external
+# topology changes. DEVPATH remains available for remove events even though
+# the device's sysfs attributes may already be gone.
+ACTION=="remove", SUBSYSTEM=="pci", DEVPATH=="*/0000:06:03.0/*", \
+    RUN+="/usr/libexec/linuxbook-air-thunderbolt-control hotplug-notify"
+
 # Enable power management for Thunderbolt controllers and ports
 #ACTION=="add", SUBSYSTEM=="pci", KERNEL=="0000:05:00.0", ATTR{power/control}="auto"
 #ACTION=="add", SUBSYSTEM=="pci", KERNEL=="0000:06:00.0", ATTR{power/control}="auto"

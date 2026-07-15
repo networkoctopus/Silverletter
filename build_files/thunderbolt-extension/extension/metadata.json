@@ -1,8 +1,8 @@
 {
   "uuid": "thunderbolt@linuxbook-air.local",
   "name": "LinuxBook-Air Thunderbolt",
-  "description": "Automatically activates Thunderbolt when an adapter is connected, while keeping the controller fully powered down when unused.",
+  "description": "Automatically activates connected Thunderbolt adapters and reports when the port is active or ready.",
   "shell-version": ["45", "46", "47", "48", "49", "50"],
   "url": "https://github.com/networkOctopus/LinuxBook-Air",
-  "version": 6
+  "version": 7
 }

@@ -120,10 +120,10 @@ thunderbolt_storage_present() {
 }
 
 show_status() {
-    if [[ -e "$STATE_FILE" ]] && ( external_device_present || nhi_present ); then
+    if [[ -e "$STATE_FILE" ]] && external_device_present; then
         printf 'enabled\n'
     elif [[ -e "$STATE_FILE" ]]; then
-        printf 'activating\n'
+        printf 'ready\n'
     elif falcon_ridge_present; then
         printf 'powerdown-incomplete\n'
     else
@@ -165,6 +165,13 @@ claim_hotplug() {
     else
         log_event daemon.info "action=hotplug-claim result=success marker=already-present"
     fi
+    notify_state_change
+}
+
+# PCI removal does not alter the active session. It only wakes the GNOME
+# indicator so it can report that the external adapter is no longer present.
+notify_hotplug_change() {
+    require_root
     notify_state_change
 }
 
@@ -300,6 +307,9 @@ case "${1:-}" in
     hotplug-claim)
         claim_hotplug
         ;;
+    hotplug-notify)
+        notify_hotplug_change
+        ;;
     hotplug-activate|prepare-suspend|resume)
         require_root
         install -d -m 0755 "$STATE_DIR"
@@ -313,7 +323,7 @@ case "${1:-}" in
         esac
         ;;
     *)
-        printf 'Usage: %s {status|hotplug-claim|hotplug-activate|prepare-suspend|resume}\n' "$0" >&2
+        printf 'Usage: %s {status|hotplug-claim|hotplug-notify|hotplug-activate|prepare-suspend|resume}\n' "$0" >&2
         exit 2
         ;;
 esac

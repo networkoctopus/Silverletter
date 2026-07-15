@@ -3,20 +3,15 @@
   Silverletter
 </h1>
 
-**A love letter to old hardware, delivered as a bootc image**
+**A love letter to 'old' hardware, delivered as a bootc image**
 
-Silverletter is based on [Universal Blue's `silverblue-main`](https://github.com/ublue-os/main/pkgs/container/silverblue-main). It is intended for selected Intel-based MacBook Air computers and currently tracks [Fedora 44](https://fedoraproject.org).
+Silverletter is based on [Universal Blue's `silverblue-main`](https://github.com/ublue-os/main/pkgs/container/silverblue-main) It is intended for selected Intel-based MacBook Air computers and currently tracks [Fedora 44](https://fedoraproject.org).
 
-This project began as a playground for bootc and the excellent [Universal Blue image-template](https://github.com/ublue-os/image-template). Instead of repeatedly layering the packages my old laptop needed onto stock Silverblue, I built a complete image around them. It became my daily driver in early 2026 and eventually felt worth sharing.
+This began as a playground for bootc using the excellent [Universal Blue image-template](https://github.com/ublue-os/image-template). Instead of repeatedly layering the packages my old laptop needed onto stock Silverblue, I built a custom one. It became my daily driver in early 2026 and eventually felt worth sharing.
 
-More than anything, Silverletter is a love letter to my 11-year-old, 11-inch laptop: a reliable out-of-box GNOME system with the necessary drivers included, kept close to its upstream base, and carefully tuned to **maximise battery life**.
+More than anything,this is a love letter to my 11-year-old, 11-inch laptop: a reliable out-of-box GNOME system with the necessary drivers included, kept close to its upstream base, and carefully tuned to **maximise battery life**.
 
 At 50% display brightness with Wi-Fi enabled and no apps open, my machine draws around **4–4.5 W**, or roughly 10 hours of battery life (if you aren't doing anything else, of course :P).  Not that I use my machine this way, but for reference - with auto-brightness off and brightness at minimum, power usage drops to **3.3–3.5 W!**  Battery condition, open apps, Wi-Fi usage, peripherals, and exact hardware all contribute.
-
-> [!IMPORTANT]
-> **Thunderbolt is powered down when unused and activates automatically when a device is connected.** Hotplug and suspend/resume have been tested with an Apple Thunderbolt to Gigabit Ethernet Adapter; other Thunderbolt devices may work but are not guaranteed.
-
-Thunderbolt control events are recorded in the system journal. For troubleshooting, run `sudo journalctl -b -t silverletter-thunderbolt`.
 
 ## What's in this image - credits to the maintainers of these projects
 
@@ -32,10 +27,11 @@ Thunderbolt control events are recorded in the system journal. For troubleshooti
 - A top-bar Thunderbolt status indicator for the automatic power-saving and hotplug support
 - [WhiteSur GTK, Shell, and GDM styling](https://github.com/vinceliuice/WhiteSur-gtk-theme), selectable [WhiteSur icons](https://github.com/vinceliuice/WhiteSur-icon-theme), [WhiteSur cursors](https://github.com/vinceliuice/WhiteSur-cursors), and [MacTahoe icons and cursors](https://github.com/vinceliuice/MacTahoe-icon-theme), optional [MacTahoe Firefox CSS](https://github.com/vinceliuice/MacTahoe-gtk-theme), and MacTahoe day/night wallpapers that follow dark mode, with the day image also used by GDM
 
-
 ## Hardware compatibility
 
 The image is developed and daily-tested on a **2015 11" MacBook Air (`MacBookAir7,1`)**. Its initramfs and power configuration are intentionally tailored to this generation.
+
+Do not assume that other MacBook or MacBook Pro computers are compatible. The trimmed initramfs omits drivers and storage features this specific machine does not need.
 
 These closely related Intel-based MacBook Air computers are reasonable candidates, but are **untested unless stated otherwise**:
 
@@ -48,7 +44,9 @@ These closely related Intel-based MacBook Air computers are reasonable candidate
 | `MacBookAir5,1` | 11-inch, Mid 2012 | Earlier related hardware; least certain |
 | `MacBookAir5,2` | 13-inch, Mid 2012 | Earlier related chassis; least certain |
 
-Do not assume that other MacBook or MacBook Pro computers are compatible. The trimmed initramfs omits drivers and storage features this specific machine does not need.
+> **Thunderbolt is powered down when unused and activates automatically when a device is connected.** Hotplug and suspend/resume have been tested with an Apple Thunderbolt to Gigabit Ethernet Adapter; other Thunderbolt devices may work but are not guaranteed.
+
+Thunderbolt control events are recorded in the system journal. For troubleshooting, run `sudo journalctl -b -t silverletter-thunderbolt`.
 
 ## Switch from another bootc system
 

@@ -87,9 +87,128 @@ firefox_is_running() {
         pgrep -u "$UID" -x firefox-bin >/dev/null 2>&1
 }
 
+firefox_profile_roots() {
+    printf '%s\n' \
+        "$HOME/.mozilla/firefox" \
+        "${XDG_CONFIG_HOME:-$HOME/.config}/mozilla/firefox" \
+        "$HOME/.var/app/org.mozilla.firefox/.mozilla/firefox"
+}
+
+firefox_profile_dirs() {
+    local root ini profile
+
+    while IFS= read -r root; do
+        ini="$root/profiles.ini"
+        [[ -s "$ini" ]] || continue
+
+        while IFS= read -r profile; do
+            [[ -n "$profile" ]] || continue
+            [[ "$profile" == /* ]] || profile="$root/$profile"
+            [[ -d "$profile" ]] && printf '%s\n' "$profile"
+        done < <(
+            awk -F= '
+                { sub(/\r$/, "") }
+                /^\[Profile[0-9]+\]$/ { in_profile = 1; next }
+                /^\[/ { in_profile = 0 }
+                in_profile && $1 == "Path" {
+                    sub(/^[^=]*=/, "")
+                    sub(/\r$/, "")
+                    print
+                }
+            ' "$ini"
+        )
+    done < <(firefox_profile_roots)
+}
+
 firefox_profile_initialized() {
-    [[ -s "$HOME/.mozilla/firefox/profiles.ini" ]] || \
-        [[ -s "${XDG_CONFIG_HOME:-$HOME/.config}/mozilla/firefox/profiles.ini" ]]
+    [[ -n "$(firefox_profile_dirs)" ]]
+}
+
+firefox_theme_dir() {
+    local root candidate
+
+    while IFS= read -r root; do
+        for candidate in \
+            "$root/firefox-themes" \
+            "$root/.mozilla/firefox/firefox-themes"; do
+            if [[ -s "$candidate/userChrome.css" && \
+                -s "$candidate/userContent.css" ]]; then
+                printf '%s\n' "$candidate"
+                return 0
+            fi
+        done
+    done < <(firefox_profile_roots)
+
+    return 1
+}
+
+connect_firefox_theme_to_profiles() {
+    local source_theme theme_dir profile profile_root root chrome user_js
+    local profiles=()
+
+    source_theme=$(firefox_theme_dir) || return 1
+    mapfile -t profiles < <(firefox_profile_dirs | sort -u)
+    (( ${#profiles[@]} )) || return 1
+
+    for profile in "${profiles[@]}"; do
+        profile_root=""
+        while IFS= read -r root; do
+            if [[ "$profile" == "$root/"* ]]; then
+                profile_root="$root"
+                break
+            fi
+        done < <(firefox_profile_roots)
+        [[ -n "$profile_root" ]] || profile_root=$(dirname "$profile")
+
+        # Keep the linked theme inside the same Firefox data root. In
+        # particular, a Flatpak Firefox cannot follow a link into ~/.mozilla.
+        theme_dir="$profile_root/firefox-themes"
+        if [[ "$(readlink -f "$source_theme")" != \
+            "$(readlink -f "$theme_dir" 2>/dev/null)" ]]; then
+            mkdir -p "$theme_dir" || return 1
+            cp -a "$source_theme/." "$theme_dir/" || return 1
+        fi
+
+        chrome="$profile/chrome"
+        if [[ ! -L "$chrome" || \
+            "$(readlink -f "$chrome" 2>/dev/null)" != "$(readlink -f "$theme_dir")" ]]; then
+            if [[ -e "$chrome" || -L "$chrome" ]]; then
+                if [[ ! -e "${chrome}.bak" && ! -L "${chrome}.bak" ]]; then
+                    mv "$chrome" "${chrome}.bak" || return 1
+                else
+                    rm -rf "$chrome" || return 1
+                fi
+            fi
+            ln -s "$theme_dir" "$chrome" || return 1
+        fi
+
+        user_js="$profile/user.js"
+        touch "$user_js" || return 1
+        if grep -q 'user_pref("toolkit\.legacyUserProfileCustomizations\.stylesheets"' \
+            "$user_js"; then
+            sed -i \
+                '/user_pref("toolkit\.legacyUserProfileCustomizations\.stylesheets"/c\user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);' \
+                "$user_js" || return 1
+        else
+            printf '%s\n' \
+                'user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);' \
+                >> "$user_js" || return 1
+        fi
+    done
+}
+
+firefox_styling_applied() {
+    local profile found=false
+
+    while IFS= read -r profile; do
+        found=true
+        [[ -s "$profile/chrome/userChrome.css" ]] || return 1
+        grep -q \
+            'user_pref("toolkit\.legacyUserProfileCustomizations\.stylesheets", true);' \
+            "$profile/user.js" || return 1
+    done < <(firefox_profile_dirs | sort -u)
+
+    [[ "$found" == true ]]
 }
 
 toshy_is_installed() {
@@ -239,7 +358,8 @@ if [[ "$REVERT_DESKTOP_THEME" == true ]]; then
         fail "The default GNOME Shell theme could not be restored."
 fi
 
-if [[ "$INSTALL_FIREFOX" == true && ! -f "$FIREFOX_SENTINEL" ]]; then
+if [[ "$INSTALL_FIREFOX" == true ]] && \
+    { [[ ! -f "$FIREFOX_SENTINEL" ]] || ! firefox_styling_applied; }; then
     progress 55 "Preparing Firefox for MacTahoe styling…"
 
     if firefox_is_running; then
@@ -287,6 +407,12 @@ if [[ "$INSTALL_FIREFOX" == true && ! -f "$FIREFOX_SENTINEL" ]]; then
     rm -rf "$FIREFOX_THEME_TMP"
     [[ $FIREFOX_STATUS -eq 0 ]] || \
         fail "MacTahoe Firefox styling failed. Review the output above."
+
+    if ! connect_firefox_theme_to_profiles; then
+        fail "MacTahoe Firefox styling did not connect to a usable Firefox profile."
+    fi
+    firefox_styling_applied || \
+        fail "MacTahoe Firefox styling could not be verified in every Firefox profile."
 
     mkdir -p "$(dirname "$FIREFOX_SENTINEL")"
     touch "$FIREFOX_SENTINEL"

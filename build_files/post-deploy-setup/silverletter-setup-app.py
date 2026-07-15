@@ -18,7 +18,7 @@ SETUP_SCRIPT = "/usr/libexec/silverletter-post-deploy-setup.sh"
 
 class SetupWindow(Gtk.ApplicationWindow):
     def __init__(self, application: Gtk.Application, force_run: bool) -> None:
-        super().__init__(application=application, title="Silverletter Setup")
+        super().__init__(application=application, title="Setup")
         self.force_run = force_run
         self.set_default_size(780, 680)
         self.set_size_request(640, 520)
@@ -223,7 +223,7 @@ class SetupWindow(Gtk.ApplicationWindow):
         page.set_margin_bottom(18)
         page.set_margin_start(18)
         page.set_margin_end(18)
-        page.append(self.heading("Silverletter Setup"))
+        page.append(self.heading("Setup"))
         page.append(self.body("Setup output and interactive questions appear below."))
 
         self.terminal = Vte.Terminal()

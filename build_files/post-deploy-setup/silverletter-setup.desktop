@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=Silverletter Setup
+Name=Setup
 Comment=Install, remove, or reset optional Silverletter components
 Icon=silverletter-setup
 Exec=/usr/libexec/silverletter-post-deploy-setup-launch.sh --force

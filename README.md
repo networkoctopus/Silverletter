@@ -141,24 +141,10 @@ Apple, Mac, MacBook Air, MacBook Pro, macOS, and Apple silicon are trademarks of
 
 ## Experimental Apple silicon build using Fedora Asahi Remix
 
-An Apple silicon build is being tested using the experimental [Fedora Asahi Remix Atomic Silverblue image](https://github.com/fedora-asahi-remix-atomic-desktops/images). It shares the desktop customisations without applying the x86 hardware workarounds.
+I liked using the above for my 'old' hardware I decided to try it out on my 'new' M2 machine. It's being tested using the experimental [Fedora Asahi Remix Atomic Silverblue image](https://github.com/fedora-asahi-remix-atomic-desktops/images). It shares the desktop customisations without applying the x86 hardware workarounds.
 
 The image is published separately as:
 
 ```text
 ghcr.io/networkoctopus/silverletter-asahi:testing
 ```
-
-It uses [`quay.io/fedora-asahi-remix-atomic-desktops/silverblue:44`](https://quay.io/repository/fedora-asahi-remix-atomic-desktops/silverblue) as its base. It includes the shared packages, GNOME extensions, themes, first-run setup, and automatic-update configuration from this project. The x86 kmods, power tuning, hardware fixes, and custom initramfs are intentionally omitted because the Asahi base provides the platform support.
-
-The upstream Atomic Asahi images describe themselves as unofficial and experimental. They are separate from the stable Fedora Asahi Remix distribution and are not endorsed by the Asahi developers.
-
-Apple silicon machines must first be installed using the Fedora Asahi Remix installation process. From an existing bootc-managed Fedora Asahi system, switch to this image and reboot:
-
-```bash
-sudo bootc switch ghcr.io/networkoctopus/silverletter-asahi:testing
-sudo systemctl reboot
-```
-
-After rebooting, verify the deployment with `sudo bootc status`.
-

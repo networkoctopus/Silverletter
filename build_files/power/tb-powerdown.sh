@@ -13,13 +13,20 @@ if ! flock -n 9; then
 fi
 
 logger -t "$LOG_TAG" "action=powerdown stage=start"
-sleep 2
 
-# An enable request may have arrived while this udev job was waiting.
-if [ -e "$STATEFILE" ]; then
-    logger -t "$LOG_TAG" "action=powerdown result=cancelled reason=enable-request-during-initial-delay"
-    exit 0
-fi
+# Give an unclaimed hierarchy two seconds to settle before changing runtime
+# PM. A physical hotplug claim must not wait behind that entire delay: release
+# the lock within about 100 ms so activation can protect the first enumeration.
+settle_step=0
+while [ "$settle_step" -lt 20 ]; do
+    sleep 0.1
+    settle_step=$((settle_step + 1))
+    if [ -e "$STATEFILE" ]; then
+        logger -t "$LOG_TAG" \
+            "action=powerdown result=cancelled reason=hotplug-claim-during-initial-delay elapsed_ms=$((settle_step * 100))"
+        exit 0
+    fi
+done
 
 TB_DEVS="07:00.0 06:06.0 06:05.0 06:04.0 06:03.0 06:00.0 05:00.0"
 

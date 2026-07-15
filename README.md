@@ -5,13 +5,11 @@
 
 **A love letter to 'old' hardware, delivered as a bootc image**
 
-Silverletter is based on [Universal Blue's `silverblue-main`](https://github.com/ublue-os/main/pkgs/container/silverblue-main) It is intended for selected Intel-based MacBook Air computers and currently tracks [Fedora 44](https://fedoraproject.org).
+Silverletter is a bootable container, based on [Universal Blue's `silverblue-main`](https://github.com/ublue-os/main/pkgs/container/silverblue-main). It is intended for selected Intel-based MacBook Air computers and currently tracks [Fedora 44](https://fedoraproject.org).
 
-This began as a playground for bootc using the excellent [Universal Blue image-template](https://github.com/ublue-os/image-template). Instead of repeatedly layering the packages my old laptop needed onto stock Silverblue, I built a custom one. It became my daily driver in early 2026 and eventually felt worth sharing.
+Instead of relegating my 11-year-old, 11-inch laptop to the gap in my couch - I wanted a reliable, modern/secure out-of-box system with the necessary drivers included, kept close to its upstream base, and carefully tuned to **maximise battery life***.
 
-More than anything,this is a love letter to my 11-year-old, 11-inch laptop: a reliable out-of-box GNOME system with the necessary drivers included, kept close to its upstream base, and carefully tuned to **maximise battery life**.
-
-At 50% display brightness with Wi-Fi enabled and no apps open, my machine draws around **4–4.5 W**, or roughly 10 hours of battery life (if you aren't doing anything else, of course :P).  Not that I use my machine this way, but for reference - with auto-brightness off and brightness at minimum, power usage drops to **3.3–3.5 W!**  Battery condition, open apps, Wi-Fi usage, peripherals, and exact hardware all contribute.
+This began as a playground for bootc using the excellent [Universal Blue image-template](https://github.com/ublue-os/image-template). It became my daily driver in early 2026 and eventually felt worth sharing.
 
 ## What's in this image - credits to the maintainers of these projects
 
@@ -44,9 +42,23 @@ These closely related Intel-based MacBook Air computers are reasonable candidate
 | `MacBookAir5,1` | 11-inch, Mid 2012 | Earlier related hardware; least certain |
 | `MacBookAir5,2` | 13-inch, Mid 2012 | Earlier related chassis; least certain |
 
-> **Thunderbolt is powered down when unused and activates automatically when a device is connected.** Hotplug and suspend/resume have been tested with an Apple Thunderbolt to Gigabit Ethernet Adapter; other Thunderbolt devices may work but are not guaranteed.
+
+## *Battery
+
+One of my goals was to maximise battery life - this image includes a number of optimisations to help in this regard. My machine draws around **4–4.5 W**, or roughly 10 hours of battery life (50% display brightness with Wi-Fi enabled and no apps running).  With auto-brightness off and brightness at minimum, power usage drops to **3.3–3.5 W!**  (Not that I use my machine this way, just for reference)
+
+One of the unnecessary power draws on this hardware is [unused Thunderbolt controllers](https://wiki.archlinux.org/title/Mac/Troubleshooting#Disabling_Thunderbolt)
+
+So, Thunderbolt is powered down when unused and activates automatically when a device is connected. Hotplug and suspend/resume have been tested with an Apple Thunderbolt to Gigabit Ethernet Adapter; other Thunderbolt devices may work but are not guaranteed.
 
 Thunderbolt control events are recorded in the system journal. For troubleshooting, run `sudo journalctl -b -t silverletter-thunderbolt`.
+
+The image includes a diagnostic script that checks the power configuration and reports tunables that are active, missing, or unexpected:
+
+```bash
+sudo power-audit.sh
+```
+
 
 ## Switch from another bootc system
 
@@ -95,13 +107,6 @@ The `latest` image is rebuilt after pushes and **twice weekly**, every Wednesday
 
 `uupd` checks for and stages operating-system and Flatpak updates automatically. The panel indicator shows update activity and tells you when a reboot is needed to enter the staged deployment. GNOME Software updates are disabled because `uupd` handles them.
 
-## Check the power tuning
-
-The image includes a diagnostic script that checks the power configuration and reports tunables that are active, missing, or unexpected:
-
-```bash
-sudo power-audit.sh
-```
 
 ## Known issues
 
@@ -131,12 +136,11 @@ sudo systemctl restart NetworkManager
 
 ## Disclaimer
 
-Have fun, but there are no warranties. This personal project is shared in the hope that it is useful. It makes deliberate hardware trade-offs, has only been validated on the test machine, and may fail to boot or work correctly elsewhere. Keep backups and know how to select an earlier deployment before experimenting.
+Have fun, but there are no warranties. This personal project is shared in the hope that it is useful. It has only been validated on the test machine, and may fail to boot or work correctly elsewhere. Keep backups and know how to select an earlier deployment before experimenting.
 
 Silverletter is not provided or supported by Apple, Intel, Red Hat, the Fedora Project, Universal Blue, or the Asahi Linux project. Official Fedora software is available from the [Fedora Project](https://fedoraproject.org/).
 
 Apple, Mac, MacBook Air, MacBook Pro, macOS, and Apple silicon are trademarks of Apple Inc. Intel and Thunderbolt are trademarks of Intel Corporation or its subsidiaries. Fedora is a trademark of Red Hat, Inc. Linux® is the registered trademark of Linus Torvalds in the U.S. and other countries.
-
 
 
 ## Experimental Apple silicon build using Fedora Asahi Remix

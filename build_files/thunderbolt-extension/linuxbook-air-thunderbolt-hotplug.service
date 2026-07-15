@@ -1,0 +1,7 @@
+[Unit]
+Description=Keep an externally connected Thunderbolt device active
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/linuxbook-air-thunderbolt-control hotplug-activate
+TimeoutStartSec=45

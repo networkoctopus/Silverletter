@@ -8,6 +8,7 @@ import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
 const CONTROL = '/usr/libexec/linuxbook-air-thunderbolt-control';
+const STATE_DIR = '/run/linuxbook-air';
 const ENABLED_COLOR = '#ed333b';
 const DISABLED_COLOR = '#ffffff';
 
@@ -18,10 +19,10 @@ class ThunderboltIndicator extends PanelMenu.Button {
     _init(extension) {
         super._init(0.0, extension.metadata.name, false);
 
-        this._enabled = false;
         this._state = 'disabled';
-        this._busy = false;
         this._destroyed = false;
+        this._refreshing = false;
+        this._refreshPending = false;
 
         const iconPath = extension.dir.get_child('icons').get_child('thunderbolt-symbolic.svg').get_path();
         this._icon = new St.Icon({
@@ -36,11 +37,7 @@ class ThunderboltIndicator extends PanelMenu.Button {
         });
         this.menu.addMenuItem(this._statusItem);
 
-        this._actionItem = new PopupMenu.PopupMenuItem('Enable Thunderbolt');
-        this._actionItem.connect('activate', () => this._requestToggle());
-        this.menu.addMenuItem(this._actionItem);
-
-        this._powerItem = new PopupMenu.PopupMenuItem('Disabled by default to save power', {
+        this._powerItem = new PopupMenu.PopupMenuItem('', {
             reactive: false,
             can_focus: false,
         });
@@ -51,8 +48,23 @@ class ThunderboltIndicator extends PanelMenu.Button {
                 this._refresh();
         });
 
-        // The system service powers Thunderbolt down before sleep. Refresh on
-        // resume so the top-bar colour immediately reflects that transition.
+        // The backend touches a state-change file after every transition. A
+        // directory monitor updates the icon without periodic polling or its
+        // associated process and wake-up overhead.
+        try {
+            this._stateMonitor = Gio.File.new_for_path(STATE_DIR).monitor_directory(
+                Gio.FileMonitorFlags.NONE,
+                null
+            );
+            this._stateMonitorId = this._stateMonitor.connect('changed', () => this._refresh());
+        } catch (error) {
+            console.error(`Thunderbolt state monitor failed: ${error.message}`);
+            this._stateMonitor = null;
+            this._stateMonitorId = 0;
+        }
+
+        // The pre-sleep service always powers the hierarchy down. Refresh on
+        // resume as a fallback even if no filesystem event reaches the shell.
         this._sleepSignalId = Gio.DBus.system.signal_subscribe(
             'org.freedesktop.login1',
             'org.freedesktop.login1.Manager',
@@ -67,52 +79,32 @@ class ThunderboltIndicator extends PanelMenu.Button {
             }
         );
 
+        this._setState('disabled');
         this._refresh();
     }
 
     _setState(state) {
-        const enabled = state === 'enabled';
-        const powerdownIncomplete = state === 'powerdown-incomplete';
-        const restartRequired = state === 'restart-required';
-        const drawingPower = enabled || powerdownIncomplete;
+        const drawingPower = state !== 'disabled';
 
         this._state = state;
-        this._enabled = drawingPower;
         this._icon.set_style(`color: ${drawingPower ? ENABLED_COLOR : DISABLED_COLOR};`);
-        if (enabled) {
-            this._statusItem.label.text = 'Thunderbolt is enabled';
-            this._actionItem.label.text = 'Disable until restart';
-            this._powerItem.label.text = 'Higher power use; disables before sleep';
-        } else if (powerdownIncomplete) {
-            this._statusItem.label.text = 'Thunderbolt power-down is incomplete';
-            this._actionItem.label.text = 'Retry full power-down';
-            this._powerItem.label.text = 'Maximum power saving is not yet active';
-        } else if (restartRequired) {
-            this._statusItem.label.text = 'Thunderbolt is fully powered down';
-            this._actionItem.label.text = 'Restart required to enable';
-            this._powerItem.label.text = 'Maximum power saving is active';
-        } else {
-            this._statusItem.label.text = 'Thunderbolt is disabled';
-            this._actionItem.label.text = 'Enable Thunderbolt';
-            this._powerItem.label.text = 'Disabled by default to save power';
-        }
-        this._actionItem.setSensitive(!restartRequired && !this._busy);
-        this.accessible_name = drawingPower
-            ? powerdownIncomplete
-                ? 'Thunderbolt power-down incomplete'
-                : 'Thunderbolt enabled'
-            : restartRequired
-                ? 'Thunderbolt disabled until restart'
-                : 'Thunderbolt disabled';
-    }
 
-    _setBusy(busy) {
-        this._busy = busy;
-        this._actionItem.setSensitive(!busy && this._state !== 'restart-required');
-        if (busy) {
-            this._statusItem.label.text = this._enabled
-                ? 'Disabling Thunderbolt…'
-                : 'Enabling Thunderbolt…';
+        if (state === 'enabled') {
+            this._statusItem.label.text = 'Thunderbolt is in use';
+            this._powerItem.label.text = 'Active until suspend or reboot';
+            this.accessible_name = 'Thunderbolt in use';
+        } else if (state === 'activating') {
+            this._statusItem.label.text = 'Thunderbolt adapter detected';
+            this._powerItem.label.text = 'Activating automatically…';
+            this.accessible_name = 'Thunderbolt activating';
+        } else if (state === 'powerdown-incomplete') {
+            this._statusItem.label.text = 'Thunderbolt power-down is incomplete';
+            this._powerItem.label.text = 'Maximum power saving is not active';
+            this.accessible_name = 'Thunderbolt power-down incomplete';
+        } else {
+            this._statusItem.label.text = 'Thunderbolt is powered down';
+            this._powerItem.label.text = 'Connect an adapter to enable it';
+            this.accessible_name = 'Thunderbolt powered down';
         }
     }
 
@@ -139,41 +131,40 @@ class ThunderboltIndicator extends PanelMenu.Button {
     }
 
     _refresh() {
-        if (this._busy || this._destroyed)
+        if (this._destroyed)
             return;
+        if (this._refreshing) {
+            this._refreshPending = true;
+            return;
+        }
 
-        this._spawn([CONTROL, 'status'], (successful, stdout) => {
+        this._refreshing = true;
+        this._spawn([CONTROL, 'status'], (successful, stdout, stderr) => {
+            this._refreshing = false;
             if (this._destroyed)
                 return;
-            if (successful && ['enabled', 'disabled', 'powerdown-incomplete', 'restart-required'].includes(stdout))
+
+            if (successful && ['enabled', 'disabled', 'activating', 'powerdown-incomplete'].includes(stdout))
                 this._setState(stdout);
-        });
-    }
+            else if (!successful && stderr)
+                console.error(`Thunderbolt status failed: ${stderr}`);
 
-    _requestToggle() {
-        if (this._busy)
-            return;
-
-        if (this._state === 'restart-required')
-            return;
-
-        const action = this._enabled ? 'disable' : 'enable';
-        this._setBusy(true);
-        this._spawn(['pkexec', CONTROL, action], (successful, _stdout, stderr) => {
-            if (this._destroyed)
-                return;
-
-            this._setBusy(false);
-            if (!successful && stderr)
-                Main.notifyError('Thunderbolt', stderr);
-            else if (successful && action === 'disable')
-                Main.notify('Thunderbolt', 'Fully powered down. Restart required to enable it again.');
-            this._refresh();
+            if (this._refreshPending) {
+                this._refreshPending = false;
+                this._refresh();
+            }
         });
     }
 
     destroy() {
         this._destroyed = true;
+        if (this._stateMonitor) {
+            if (this._stateMonitorId)
+                this._stateMonitor.disconnect(this._stateMonitorId);
+            this._stateMonitor.cancel();
+            this._stateMonitor = null;
+            this._stateMonitorId = 0;
+        }
         if (this._sleepSignalId) {
             Gio.DBus.system.signal_unsubscribe(this._sleepSignalId);
             this._sleepSignalId = 0;

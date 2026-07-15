@@ -113,7 +113,8 @@ if [[ $TB_FEATURE_INSTALLED -eq 1 ]]; then
     FILES+=(
         "/usr/libexec/linuxbook-air-thunderbolt-control"
         "/usr/lib/systemd/system/linuxbook-air-thunderbolt-sleep.service"
-        "/usr/share/polkit-1/actions/io.github.networkoctopus.linuxbookair.thunderbolt.policy"
+        "/usr/lib/systemd/system/linuxbook-air-thunderbolt-hotplug.service"
+        "/usr/lib/tmpfiles.d/linuxbook-air-thunderbolt.conf"
         "/usr/share/gnome-shell/extensions/thunderbolt@linuxbook-air.local/extension.js"
     )
 fi
@@ -132,18 +133,18 @@ header "Thunderbolt"
 TB_ENABLED=0
 if [[ -e /run/linuxbook-air/thunderbolt-enabled ]]; then
     TB_ENABLED=1
-    info "Temporary Thunderbolt enable is active"
+    info "Automatic Thunderbolt hotplug session is active"
 fi
 
 if lsmod | grep -q '^thunderbolt '; then
     if [[ $TB_ENABLED -eq 1 ]]; then
-        pass "thunderbolt module is loaded by the temporary enable control"
+        pass "thunderbolt module is loaded for the automatic hotplug session"
     else
-        fail "thunderbolt module is LOADED without the temporary enable marker"
+        fail "thunderbolt module is LOADED without the hotplug session marker"
     fi
 else
     if [[ $TB_ENABLED -eq 1 ]]; then
-        fail "temporary enable marker exists but thunderbolt module is not loaded"
+        fail "hotplug session marker exists but thunderbolt module is not loaded"
     else
         pass "thunderbolt module not loaded"
     fi
@@ -151,13 +152,13 @@ fi
 
 if grep -q 'install thunderbolt /bin/false' /usr/lib/modprobe.d/thunderbolt-blacklist.conf 2>/dev/null; then
     if [[ $TB_FEATURE_INSTALLED -eq 1 ]]; then
-        fail "Hard block (install thunderbolt /bin/false) prevents temporary enable"
+        fail "Hard block (install thunderbolt /bin/false) prevents hotplug activation"
     else
         pass "Hard Thunderbolt module block present"
     fi
 elif grep -q 'blacklist thunderbolt' /usr/lib/modprobe.d/thunderbolt-blacklist.conf 2>/dev/null; then
     if [[ $TB_FEATURE_INSTALLED -eq 1 ]]; then
-        pass "Soft blacklist present (automatic load blocked; explicit enable permitted)"
+        pass "Soft blacklist present (alias load blocked; hotplug service can load explicitly)"
     else
         pass "Soft Thunderbolt module blacklist present"
     fi
@@ -183,9 +184,9 @@ for dev in "${TB_DEVS[@]}"; do
         if [[ $TB_ENABLED -eq 0 ]]; then
             fail "$dev — still present (expected the Thunderbolt hierarchy to be removed)"
         elif [[ "$ctrl" == "on" ]]; then
-            pass "$dev — control=$ctrl status=$status (temporarily enabled)"
+            pass "$dev — control=$ctrl status=$status (hotplug session active)"
         else
-            fail "$dev — control=$ctrl (expected on while temporarily enabled) status=$status"
+            fail "$dev — control=$ctrl (expected on during hotplug session) status=$status"
         fi
     else
         info "$dev — not present on PCIe bus (expected if TB fully off)"
@@ -306,7 +307,7 @@ done < <(find /sys/bus/pci/devices -maxdepth 1 -mindepth 1)
 
 info "Total PCIe devices: $total"
 info "Runtime PM auto:    $auto / $total"
-[[ $intentional_on -gt 0 ]] && info "Thunderbolt forced on: $intentional_on (temporary enable)"
+[[ $intentional_on -gt 0 ]] && info "Thunderbolt forced on: $intentional_on (hotplug session)"
 info "Currently suspended: $suspended"
 info "Currently active:    $active_count"
 

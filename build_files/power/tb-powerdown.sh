@@ -24,6 +24,10 @@ fi
 TB_DEVS="07:00.0 06:06.0 06:05.0 06:04.0 06:03.0 06:00.0 05:00.0"
 
 for dev in $TB_DEVS; do
+    if [ -e "$STATEFILE" ]; then
+        logger -t "$LOG_TAG" "action=powerdown result=cancelled reason=hotplug-claim-during-runtime-pm"
+        exit 0
+    fi
     path="/sys/bus/pci/devices/0000:$dev"
     if [ -e "$path" ]; then
         echo 0    > "$path/power/autosuspend_delay_ms"
@@ -41,6 +45,10 @@ if [ -e "$STATEFILE" ]; then
 fi
 
 for dev in $TB_DEVS; do
+    if [ -e "$STATEFILE" ]; then
+        logger -t "$LOG_TAG" "action=powerdown result=cancelled reason=hotplug-claim-before-pci-remove"
+        exit 0
+    fi
     path="/sys/bus/pci/devices/0000:$dev"
     if [ -e "$path/remove" ]; then
         echo 1 > "$path/remove"

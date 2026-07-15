@@ -1,9 +1,9 @@
 # /usr/lib/udev/rules.d/99-thunderbolt-pm.rules
 
 # Thunderbolt 2 Falcon Ridge power management (MacBook Air 7,1)
-# Matches all TB2 bridge (156b) and NHI (156a) devices.
-# Teardown can block while PCI bridges disappear, so ask systemd to run the
-# oneshot service instead of doing long-running work inside the udev worker.
+# Internal Falcon Ridge functions are normally torn down for maximum power
+# saving. An external PCI function below port 06:03.0 is treated as a physical
+# plug request and automatically claims the hierarchy before teardown wins.
 
 ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x156b", \
     TEST!="/run/linuxbook-air/thunderbolt-enabled", \
@@ -12,6 +12,24 @@ ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x156b",
 ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x156a", \
     TEST!="/run/linuxbook-air/thunderbolt-enabled", \
     TAG+="systemd", ENV{SYSTEMD_WANTS}+="linuxbook-air-thunderbolt-powerdown.service"
+
+# KERNELS matches a parent, so this excludes the built-in 06:03.0 bridge itself
+# and matches any external PCIe-tunnelled bridge or endpoint below it. The
+# direct RUN helper only creates a cancellation marker; systemd does the slow
+# driver and runtime-PM work outside the udev worker.
+ACTION=="add", SUBSYSTEM=="pci", KERNELS=="0000:06:03.0", \
+    RUN+="/usr/libexec/linuxbook-air-thunderbolt-control hotplug-claim", \
+    TAG+="systemd", ENV{SYSTEMD_WANTS}+="linuxbook-air-thunderbolt-hotplug.service"
+
+# Keep every function awake while the automatically claimed session is active.
+ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x156b", \
+    TEST=="/run/linuxbook-air/thunderbolt-enabled", ATTR{power/control}="on"
+
+ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x156a", \
+    TEST=="/run/linuxbook-air/thunderbolt-enabled", ATTR{power/control}="on"
+
+ACTION=="add", SUBSYSTEM=="pci", KERNELS=="0000:06:03.0", \
+    TEST=="/run/linuxbook-air/thunderbolt-enabled", ATTR{power/control}="on"
 
 # Enable power management for Thunderbolt controllers and ports
 #ACTION=="add", SUBSYSTEM=="pci", KERNEL=="0000:05:00.0", ATTR{power/control}="auto"

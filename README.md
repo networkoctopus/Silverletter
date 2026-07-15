@@ -14,7 +14,7 @@ This little project started with the great [Universal Blue image-template](https
 At 50% display brightness with Wi-Fi enabled and no apps open, my machine draws around **4–4.5 W**, or roughly 10 hours of battery life (if you aren't doing anything else, of course :P).  Not that I use my machine this way, but for reference - with auto-brightness off and brightness at minimum, power usage drops to **3.3–3.5 W!**  Battery condition, open apps, Wi-Fi usage, peripherals, and exact hardware all contribute.
 
 > [!IMPORTANT]
-> **Thunderbolt is disabled by default to save power.** The top-bar Thunderbolt indicator can temporarily enable it until it is switched off, the system sleeps, or the system reboots. A full power-down cannot be reversed on this Falcon Ridge controller without restarting the computer. The icon is white while disabled and red while enabled as a reminder of the substantially higher power use. Disconnect Thunderbolt storage before disabling the port; sleep is blocked if the hierarchy cannot be torn down safely.
+> **Thunderbolt is fully powered down by default to save power.** Connecting a Thunderbolt adapter automatically activates the controller; no menu action is required. The top-bar icon is white while powered down and red while Thunderbolt is active. The controller is safely torn down before suspend and reclaimed automatically after resume if the adapter re-enumerates; otherwise reconnect the adapter. Disconnect Thunderbolt storage before suspending, because sleep is stopped if the hierarchy cannot be torn down safely.
 
 Thunderbolt control events are recorded in the system journal. For troubleshooting, run `sudo journalctl -b -t linuxbook-air-thunderbolt`.
 

@@ -1,8 +1,8 @@
 {
   "uuid": "thunderbolt@linuxbook-air.local",
   "name": "LinuxBook-Air Thunderbolt",
-  "description": "Temporarily enable Thunderbolt until it is disabled or the system sleeps. Re-enabling after full power-down requires a restart.",
+  "description": "Automatically activates Thunderbolt when an adapter is connected, while keeping the controller fully powered down when unused.",
   "shell-version": ["45", "46", "47", "48", "49", "50"],
   "url": "https://github.com/networkOctopus/LinuxBook-Air",
-  "version": 4
+  "version": 6
 }

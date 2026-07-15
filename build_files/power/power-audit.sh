@@ -27,6 +27,11 @@ if [[ $(id -u) != 0 ]]; then
     exit 1
 fi
 
+TB_FEATURE_INSTALLED=0
+if [[ -x /usr/libexec/linuxbook-air-thunderbolt-control ]]; then
+    TB_FEATURE_INSTALLED=1
+fi
+
 # ─── PRE-FLIGHT CHECKLIST ──────────────────────────────────────────────────
 echo -e "\n${HEADER}╔══════════════════════════════════════════╗${RESET}"
 echo -e "${HEADER}║     MacBook Air Power Audit — Setup      ║${RESET}"
@@ -64,12 +69,30 @@ else
     fail "acpi_osi=!Darwin is NOT in /proc/cmdline"
 fi
 
+if [[ $TB_FEATURE_INSTALLED -eq 1 ]] && grep -q 'pci=hpbussize=8' /proc/cmdline; then
+    pass "pci=hpbussize=8 is active (Thunderbolt hot-plug bus space reserved)"
+elif [[ $TB_FEATURE_INSTALLED -eq 1 ]]; then
+    fail "Thunderbolt control is installed but pci=hpbussize=8 is NOT in /proc/cmdline"
+elif grep -q 'pci=hpbussize=8' /proc/cmdline; then
+    warn "pci=hpbussize=8 is active although the optional Thunderbolt control is not installed"
+else
+    info "Optional Thunderbolt hot-plug bus reservation is not installed"
+fi
+
 info "Full cmdline: $(cat /proc/cmdline)"
 
-if [[ -f /usr/lib/bootc/kargs.d/im-not-macos.toml ]]; then
-    pass "kargs.d toml exists: $(cat /usr/lib/bootc/kargs.d/im-not-macos.toml)"
+if [[ -f /usr/lib/bootc/kargs.d/linuxbook-air.toml ]]; then
+    pass "kargs.d toml exists: $(cat /usr/lib/bootc/kargs.d/linuxbook-air.toml)"
 else
-    fail "kargs.d toml missing at /usr/lib/bootc/kargs.d/im-not-macos.toml"
+    fail "kargs.d toml missing at /usr/lib/bootc/kargs.d/linuxbook-air.toml"
+fi
+
+if [[ $TB_FEATURE_INSTALLED -eq 1 ]]; then
+    if [[ -f /usr/lib/bootc/kargs.d/linuxbook-air-thunderbolt.toml ]]; then
+        pass "Thunderbolt kargs.d toml exists: $(cat /usr/lib/bootc/kargs.d/linuxbook-air-thunderbolt.toml)"
+    else
+        fail "Thunderbolt kargs.d toml missing at /usr/lib/bootc/kargs.d/linuxbook-air-thunderbolt.toml"
+    fi
 fi
 
 # ─── 2. CONFIG FILES ───────────────────────────────────────────────────────
@@ -78,12 +101,22 @@ header "Config Files"
 FILES=(
     "/usr/lib/modprobe.d/thunderbolt-blacklist.conf"
     "/usr/lib/udev/rules.d/99-thunderbolt-pm.rules"
+    "/usr/lib/systemd/system/linuxbook-air-thunderbolt-powerdown.service"
     "/usr/lib/NetworkManager/conf.d/default-wifi-powersave-on.conf"
     "/usr/lib/systemd/system/powertop.service"
     "/usr/lib/systemd/system/aspm-tune.service"
     #"/usr/lib/systemd/system/aspm-tune-resume.service"
     "/usr/bin/aspm-tune.sh"
 )
+
+if [[ $TB_FEATURE_INSTALLED -eq 1 ]]; then
+    FILES+=(
+        "/usr/libexec/linuxbook-air-thunderbolt-control"
+        "/usr/lib/systemd/system/linuxbook-air-thunderbolt-sleep.service"
+        "/usr/share/polkit-1/actions/io.github.networkoctopus.linuxbookair.thunderbolt.policy"
+        "/usr/share/gnome-shell/extensions/thunderbolt@linuxbook-air.local/extension.js"
+    )
+fi
 
 for f in "${FILES[@]}"; do
     if [[ -f "$f" ]]; then
@@ -96,31 +129,63 @@ done
 # ─── 3. THUNDERBOLT ────────────────────────────────────────────────────────
 header "Thunderbolt"
 
-if lsmod | grep -q thunderbolt; then
-    fail "thunderbolt module is LOADED (blacklist not effective)"
+TB_ENABLED=0
+if [[ -e /run/linuxbook-air/thunderbolt-enabled ]]; then
+    TB_ENABLED=1
+    info "Temporary Thunderbolt enable is active"
+fi
+
+if lsmod | grep -q '^thunderbolt '; then
+    if [[ $TB_ENABLED -eq 1 ]]; then
+        pass "thunderbolt module is loaded by the temporary enable control"
+    else
+        fail "thunderbolt module is LOADED without the temporary enable marker"
+    fi
 else
-    pass "thunderbolt module not loaded"
+    if [[ $TB_ENABLED -eq 1 ]]; then
+        fail "temporary enable marker exists but thunderbolt module is not loaded"
+    else
+        pass "thunderbolt module not loaded"
+    fi
 fi
 
 if grep -q 'install thunderbolt /bin/false' /usr/lib/modprobe.d/thunderbolt-blacklist.conf 2>/dev/null; then
-    pass "Hard block (install /bin/false) present"
+    if [[ $TB_FEATURE_INSTALLED -eq 1 ]]; then
+        fail "Hard block (install thunderbolt /bin/false) prevents temporary enable"
+    else
+        pass "Hard Thunderbolt module block present"
+    fi
 elif grep -q 'blacklist thunderbolt' /usr/lib/modprobe.d/thunderbolt-blacklist.conf 2>/dev/null; then
-    warn "Only soft blacklist present — consider adding: install thunderbolt /bin/false"
+    if [[ $TB_FEATURE_INSTALLED -eq 1 ]]; then
+        pass "Soft blacklist present (automatic load blocked; explicit enable permitted)"
+    else
+        pass "Soft Thunderbolt module blacklist present"
+    fi
 else
     fail "thunderbolt-blacklist.conf missing or empty"
 fi
 
 # Thunderbolt PCIe devices runtime PM
 header "Thunderbolt PCIe Runtime PM"
-TB_DEVS=("0000:05:00.0" "0000:06:00.0" "0000:06:03.0" "0000:06:04.0" "0000:06:05.0")
+TB_DEVS=(
+    "0000:05:00.0"
+    "0000:06:00.0"
+    "0000:06:03.0"
+    "0000:06:04.0"
+    "0000:06:05.0"
+    "0000:06:06.0"
+    "0000:07:00.0"
+)
 for dev in "${TB_DEVS[@]}"; do
     if [[ -e "/sys/bus/pci/devices/$dev" ]]; then
         ctrl=$(cat /sys/bus/pci/devices/$dev/power/control 2>/dev/null)
         status=$(cat /sys/bus/pci/devices/$dev/power/runtime_status 2>/dev/null)
-        if [[ "$ctrl" == "auto" ]]; then
-            pass "$dev — control=$ctrl status=$status"
+        if [[ $TB_ENABLED -eq 0 ]]; then
+            fail "$dev — still present (expected the Thunderbolt hierarchy to be removed)"
+        elif [[ "$ctrl" == "on" ]]; then
+            pass "$dev — control=$ctrl status=$status (temporarily enabled)"
         else
-            fail "$dev — control=$ctrl (expected auto) status=$status"
+            fail "$dev — control=$ctrl (expected on while temporarily enabled) status=$status"
         fi
     else
         info "$dev — not present on PCIe bus (expected if TB fully off)"
@@ -157,17 +222,27 @@ fi
 # ─── 5. SYSTEMD SERVICES ───────────────────────────────────────────────────
 header "Systemd Services"
 
-SERVICES=("powertop.service" "aspm-tune.service" #"aspm-tune-resume.service"
+SERVICES=(
+    "powertop.service"
+    "aspm-tune.service"
+    "linuxbook-air-thunderbolt-powerdown.service"
+    #"aspm-tune-resume.service"
 )
+if [[ $TB_FEATURE_INSTALLED -eq 1 ]]; then
+    SERVICES+=("linuxbook-air-thunderbolt-sleep.service")
+fi
 for svc in "${SERVICES[@]}"; do
     enabled=$(systemctl is-enabled "$svc" 2>/dev/null)
     active=$(systemctl is-active "$svc" 2>/dev/null)
 
     if [[ "$enabled" == "enabled" ]]; then
-        if [[ "$svc" == "powertop.service" || "$svc" == "aspm-tune-resume.service" ]]; then
-            # oneshot resume service — inactive is normal
+        if [[ "$svc" == "powertop.service" ||
+              "$svc" == "aspm-tune-resume.service" ||
+              "$svc" == "linuxbook-air-thunderbolt-powerdown.service" ||
+              "$svc" == "linuxbook-air-thunderbolt-sleep.service" ]]; then
+            # Oneshot service — inactive after successful completion is normal.
             if [[ "$active" == "inactive" || "$active" == "active" ]]; then
-                pass "$svc — enabled (oneshot resume, currently $active)"
+                pass "$svc — enabled (oneshot, currently $active)"
             else
                 fail "$svc — enabled but status: $active"
             fi
@@ -215,26 +290,34 @@ fi
 # ─── 7. PCIe RUNTIME PM ────────────────────────────────────────────────────
 header "PCIe Runtime PM Summary"
 
-total=0; auto=0; suspended=0; active_count=0
+total=0; auto=0; intentional_on=0; suspended=0; active_count=0
 while IFS= read -r dev; do
     addr=$(basename "$dev")
     ctrl=$(cat "$dev/power/control" 2>/dev/null)
     status=$(cat "$dev/power/runtime_status" 2>/dev/null)
     total=$((total+1))
     [[ "$ctrl" == "auto" ]] && auto=$((auto+1))
+    if [[ $TB_ENABLED -eq 1 && "$ctrl" == "on" && "$(readlink -f "$dev")" == *"/0000:05:00.0"* ]]; then
+        intentional_on=$((intentional_on+1))
+    fi
     [[ "$status" == "suspended" ]] && suspended=$((suspended+1))
     [[ "$status" == "active" ]] && active_count=$((active_count+1))
 done < <(find /sys/bus/pci/devices -maxdepth 1 -mindepth 1)
 
 info "Total PCIe devices: $total"
 info "Runtime PM auto:    $auto / $total"
+[[ $intentional_on -gt 0 ]] && info "Thunderbolt forced on: $intentional_on (temporary enable)"
 info "Currently suspended: $suspended"
 info "Currently active:    $active_count"
 
-if [[ "$auto" == "$total" ]]; then
-    pass "All devices have runtime PM set to auto"
+if [[ $((auto+intentional_on)) -eq $total ]]; then
+    if [[ $intentional_on -gt 0 ]]; then
+        pass "All non-Thunderbolt devices use runtime PM auto"
+    else
+        pass "All devices have runtime PM set to auto"
+    fi
 else
-    warn "$((total-auto)) device(s) not set to auto runtime PM"
+    warn "$((total-auto-intentional_on)) unexpected device(s) not set to auto runtime PM"
 fi
 
 # List any non-auto devices
@@ -243,7 +326,11 @@ for dev in /sys/bus/pci/devices/*; do
     ctrl=$(cat "$dev/power/control" 2>/dev/null)
     if [[ "$ctrl" != "auto" ]]; then
         name=$(lspci -s "$addr" 2>/dev/null | cut -d' ' -f3-)
-        fail "  $addr — control=$ctrl — $name"
+        if [[ $TB_ENABLED -eq 1 && "$ctrl" == "on" && "$(readlink -f "$dev")" == *"/0000:05:00.0"* ]]; then
+            info "  $addr — control=$ctrl — $name (temporary Thunderbolt enable)"
+        else
+            fail "  $addr — control=$ctrl — $name"
+        fi
     fi
 done
 

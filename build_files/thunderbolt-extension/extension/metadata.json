@@ -1,0 +1,8 @@
+{
+  "uuid": "thunderbolt@linuxbook-air.local",
+  "name": "LinuxBook-Air Thunderbolt",
+  "description": "Temporarily enable the Thunderbolt port when it is needed and power it down when it is not.",
+  "shell-version": ["45", "46", "47", "48", "49", "50"],
+  "url": "https://github.com/networkOctopus/LinuxBook-Air",
+  "version": 3
+}

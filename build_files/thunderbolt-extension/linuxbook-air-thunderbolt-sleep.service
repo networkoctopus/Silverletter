@@ -1,0 +1,11 @@
+[Unit]
+Description=Disable Thunderbolt before system sleep
+Before=sleep.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/linuxbook-air-thunderbolt-control prepare-suspend
+TimeoutStartSec=60
+
+[Install]
+RequiredBy=sleep.target

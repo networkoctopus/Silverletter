@@ -2,13 +2,16 @@
 
 # Thunderbolt 2 Falcon Ridge power management (MacBook Air 7,1)
 # Matches all TB2 bridge (156b) and NHI (156a) devices.
-# The script is locked so only one instance runs despite multiple add events.
+# Teardown can block while PCI bridges disappear, so ask systemd to run the
+# oneshot service instead of doing long-running work inside the udev worker.
 
 ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x156b", \
-    RUN+="/usr/libexec/tb-powerdown.sh"
+    TEST!="/run/linuxbook-air/thunderbolt-enabled", \
+    TAG+="systemd", ENV{SYSTEMD_WANTS}+="linuxbook-air-thunderbolt-powerdown.service"
 
 ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x156a", \
-    RUN+="/usr/libexec/tb-powerdown.sh"
+    TEST!="/run/linuxbook-air/thunderbolt-enabled", \
+    TAG+="systemd", ENV{SYSTEMD_WANTS}+="linuxbook-air-thunderbolt-powerdown.service"
 
 # Enable power management for Thunderbolt controllers and ports
 #ACTION=="add", SUBSYSTEM=="pci", KERNEL=="0000:05:00.0", ATTR{power/control}="auto"

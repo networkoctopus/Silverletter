@@ -1,0 +1,251 @@
+#!/bin/bash
+# Privileged backend for the LinuxBook-Air GNOME Thunderbolt indicator.
+set -euo pipefail
+
+readonly STATE_DIR="/run/linuxbook-air"
+readonly STATE_FILE="${STATE_DIR}/thunderbolt-enabled"
+readonly CONTROL_LOCK="${STATE_DIR}/thunderbolt-control.lock"
+readonly POWERDOWN_HELPER="/usr/libexec/tb-powerdown.sh"
+readonly LOG_TAG="linuxbook-air-thunderbolt"
+
+log_event() {
+    local priority="$1"
+    shift
+    logger -p "$priority" -t "$LOG_TAG" -- "$*" || true
+}
+
+is_falcon_ridge_device() {
+    local path="$1"
+    local vendor device
+
+    [[ -r "${path}/vendor" && -r "${path}/device" ]] || return 1
+    read -r vendor < "${path}/vendor"
+    read -r device < "${path}/device"
+    [[ "$vendor" == "0x8086" && ( "$device" == "0x156a" || "$device" == "0x156b" ) ]]
+}
+
+nhi_present() {
+    local path
+
+    for path in /sys/bus/pci/devices/*; do
+        if is_falcon_ridge_device "$path" && [[ $(<"${path}/device") == "0x156a" ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+falcon_ridge_present() {
+    local path
+
+    for path in /sys/bus/pci/devices/*; do
+        if is_falcon_ridge_device "$path"; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+thunderbolt_pci_addresses() {
+    local path real_path addresses=""
+
+    for path in /sys/bus/pci/devices/*; do
+        [[ -e "$path" ]] || continue
+        real_path=$(readlink -f "$path")
+        if [[ "$real_path" == *"/0000:05:00.0"* ]]; then
+            addresses+="${addresses:+,}$(basename "$path")"
+        fi
+    done
+    printf '%s' "${addresses:-none}"
+}
+
+log_snapshot() {
+    local stage="$1" marker="absent" module="unloaded" nhi="absent" hierarchy="absent"
+
+    [[ -e "$STATE_FILE" ]] && marker="present"
+    lsmod | grep -q '^thunderbolt ' && module="loaded"
+    nhi_present && nhi="present"
+    falcon_ridge_present && hierarchy="present"
+    log_event daemon.info \
+        "stage=$stage marker=$marker module=$module nhi=$nhi hierarchy=$hierarchy pci_devices=$(thunderbolt_pci_addresses)"
+}
+
+thunderbolt_storage_present() {
+    local block target
+
+    for block in /sys/class/block/*; do
+        [[ -e "$block" ]] || continue
+        target=$(readlink -f "$block")
+        if [[ "$target" == *"/0000:05:00.0/"* ]]; then
+            log_event daemon.warning \
+                "action=disable safety-check=failed block_device=$(basename "$block")"
+            return 0
+        fi
+    done
+    return 1
+}
+
+show_status() {
+    if [[ -e "$STATE_FILE" ]] || falcon_ridge_present; then
+        printf 'enabled\n'
+    else
+        printf 'disabled\n'
+    fi
+}
+
+require_root() {
+    if [[ $EUID -ne 0 ]]; then
+        printf 'This operation requires administrator privileges.\n' >&2
+        exit 1
+    fi
+}
+
+set_falcon_ridge_power_on() {
+    local path
+
+    for path in /sys/bus/pci/devices/*; do
+        if is_falcon_ridge_device "$path" && [[ -w "${path}/power/control" ]]; then
+            printf 'on\n' > "${path}/power/control"
+            log_event daemon.info \
+                "action=enable stage=runtime-pm device=$(basename "$path") control=on"
+        fi
+    done
+}
+
+enable_thunderbolt() {
+    local attempt status
+
+    log_event daemon.notice "action=enable stage=start"
+    log_snapshot "enable-before"
+
+    install -d -m 0755 "$STATE_DIR"
+    : > "$STATE_FILE"
+    chmod 0644 "$STATE_FILE"
+    log_event daemon.info "action=enable stage=marker-created"
+
+    enable_failed() {
+        status=$?
+        trap - ERR
+        log_event daemon.err \
+            "action=enable result=failed exit_status=$status line=${BASH_LINENO[0]}"
+        rm -f "$STATE_FILE"
+        if ! "$POWERDOWN_HELPER"; then
+            log_event daemon.err "action=enable rollback=powerdown-failed"
+        fi
+        log_snapshot "enable-rollback"
+        exit "$status"
+    }
+    trap enable_failed ERR
+
+    modprobe thunderbolt
+    log_event daemon.info "action=enable stage=module-loaded module=thunderbolt"
+
+    # Falcon Ridge can take more than one scan to return from its low-power
+    # state. Keep this bounded so a hardware fault is reported to the user.
+    for attempt in 1 2 3; do
+        log_event daemon.info "action=enable stage=pci-rescan attempt=$attempt"
+        printf '1\n' > /sys/bus/pci/rescan
+        udevadm settle
+        if nhi_present; then
+            log_event daemon.info \
+                "action=enable stage=pci-rescan attempt=$attempt controller=present"
+            break
+        fi
+        log_event daemon.warning \
+            "action=enable stage=pci-rescan attempt=$attempt controller=absent"
+        sleep 1
+    done
+
+    if ! nhi_present; then
+        printf 'The Thunderbolt controller did not appear after the PCI rescan.\n' >&2
+        return 1
+    fi
+
+    set_falcon_ridge_power_on
+    udevadm settle
+    trap - ERR
+    log_snapshot "enable-after"
+    log_event daemon.notice "action=enable result=success"
+}
+
+disable_thunderbolt() {
+    local reason="${1:-user}" status
+
+    log_event daemon.notice "action=disable reason=$reason stage=start"
+    log_snapshot "disable-before"
+
+    disable_failed() {
+        status=$?
+        trap - ERR
+        log_event daemon.err \
+            "action=disable reason=$reason result=failed exit_status=$status line=${BASH_LINENO[0]}"
+        log_snapshot "disable-failed"
+        exit "$status"
+    }
+    trap disable_failed ERR
+
+    if thunderbolt_storage_present; then
+        log_event daemon.err "action=disable result=refused reason=thunderbolt-storage-present"
+        printf 'Disconnect all Thunderbolt storage devices before disabling the port.\n' >&2
+        exit 1
+    fi
+
+    # Refuse a destructive teardown if another Thunderbolt kernel client is
+    # still active. The marker remains in place when either removal fails.
+    if lsmod | grep -q '^thunderbolt_net '; then
+        if modprobe -r thunderbolt_net; then
+            log_event daemon.info "action=disable stage=module-removed module=thunderbolt_net"
+        else
+            log_event daemon.warning "action=disable stage=module-remove-failed module=thunderbolt_net"
+        fi
+    fi
+    if lsmod | grep -q '^thunderbolt '; then
+        if ! modprobe -r thunderbolt; then
+            log_event daemon.err "action=disable stage=module-remove-failed module=thunderbolt"
+            return 1
+        fi
+        log_event daemon.info "action=disable stage=module-removed module=thunderbolt"
+    fi
+
+    rm -f "$STATE_FILE"
+    log_event daemon.info "action=disable stage=marker-removed"
+    "$POWERDOWN_HELPER"
+
+    if falcon_ridge_present; then
+        log_event daemon.err \
+            "action=disable reason=$reason result=failed failure=pci-hierarchy-still-present"
+        log_snapshot "disable-incomplete"
+        printf 'The Thunderbolt PCI hierarchy could not be powered down.\n' >&2
+        exit 1
+    fi
+
+    trap - ERR
+    log_snapshot "disable-after"
+    log_event daemon.notice "action=disable reason=$reason result=success"
+}
+
+case "${1:-}" in
+    status)
+        show_status
+        ;;
+    enable|disable|prepare-suspend)
+        require_root
+        install -d -m 0755 "$STATE_DIR"
+        exec 9> "$CONTROL_LOCK"
+        flock 9
+        log_event daemon.info "action=$1 stage=control-lock-acquired uid=$EUID"
+        if [[ "$1" == "enable" ]]; then
+            enable_thunderbolt
+        elif [[ "$1" == "disable" ]]; then
+            disable_thunderbolt user
+        elif [[ -e "$STATE_FILE" ]] || lsmod | grep -q '^thunderbolt ' || falcon_ridge_present; then
+            disable_thunderbolt suspend
+        else
+            log_event daemon.info "action=prepare-suspend result=skipped reason=already-powered-down"
+        fi
+        ;;
+    *)
+        printf 'Usage: %s {status|enable|disable|prepare-suspend}\n' "$0" >&2
+        exit 2
+        ;;
+esac

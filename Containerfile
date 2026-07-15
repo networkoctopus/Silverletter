@@ -19,6 +19,7 @@ RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     /ctx/10-kmods.sh && \
     /ctx/15-packages.sh && \
     /ctx/20-power.sh && \
+    /ctx/25-thunderbolt-extension.sh && \
     /ctx/30-fixes.sh && \
     /ctx/35-mactahoe-theme.sh && \
     /ctx/40-post-deploy-setup.sh && \

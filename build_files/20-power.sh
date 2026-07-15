@@ -2,9 +2,9 @@
 set -ouex pipefail
 
 ### ── Kernel arguments ──
-# Tell firmware this is not macOS (creates Linux-accessible AHCI paths)
-install -Dm644 /ctx/power/im-not-macos.toml \
-    /usr/lib/bootc/kargs.d/im-not-macos.toml
+# Tell firmware this is not macOS (creates Linux-accessible AHCI paths).
+install -Dm644 /ctx/power/linuxbook-air.toml \
+    /usr/lib/bootc/kargs.d/linuxbook-air.toml
 
 ### ── Kernel module config ──
 # Disable Thunderbolt driver (reduces power draw on MacBook Air 7,1)
@@ -19,6 +19,16 @@ install -Dm644 /ctx/power/99-thunderbolt-pm.rules \
     /usr/lib/udev/rules.d/99-thunderbolt-pm.rules
 
 install -Dm755 /ctx/power/tb-powerdown.sh /usr/libexec/tb-powerdown.sh
+
+install -Dm644 /ctx/power/linuxbook-air-thunderbolt-powerdown.service \
+    /usr/lib/systemd/system/linuxbook-air-thunderbolt-powerdown.service
+systemctl enable linuxbook-air-thunderbolt-powerdown.service
+
+# These are supplied by the Fedora base image. Fail the image build if a future
+# base change removes a dependency used by the always-disabled power-down path.
+for runtime_cmd in flock logger lsmod modprobe udevadm; do
+    command -v "$runtime_cmd" >/dev/null
+done
 
 ### ── NetworkManager ──
 # Enable WiFi powersave by default

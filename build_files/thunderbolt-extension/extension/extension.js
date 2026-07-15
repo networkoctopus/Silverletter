@@ -89,10 +89,10 @@ class ThunderboltIndicator extends PanelMenu.Button {
 
         this._state = state;
         this._icon.set_style(`color: ${adapterPresent || warning ? ENABLED_COLOR : DISABLED_COLOR};`);
+        this._powerItem.visible = state !== 'enabled';
 
         if (state === 'enabled') {
             this._statusItem.label.text = 'Thunderbolt is in use';
-            this._powerItem.label.text = 'Active until suspend or reboot';
             this.accessible_name = 'Thunderbolt in use';
         } else if (state === 'ready') {
             this._statusItem.label.text = 'Thunderbolt is ready';

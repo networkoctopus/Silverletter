@@ -4,5 +4,5 @@
   "description": "Automatically activates connected Thunderbolt adapters and reports when the port is active or ready.",
   "shell-version": ["45", "46", "47", "48", "49", "50"],
   "url": "https://github.com/networkOctopus/LinuxBook-Air",
-  "version": 7
+  "version": 8
 }

@@ -1,4 +1,5 @@
 cosign.key
+.DS_Store
 _build_*
 output
 _build-*/**

@@ -1,8 +1,8 @@
 {
-  "uuid": "thunderbolt@linuxbook-air.local",
-  "name": "LinuxBook-Air Thunderbolt",
+  "uuid": "thunderbolt@silverletter.local",
+  "name": "Silverletter Thunderbolt",
   "description": "Automatically activates connected Thunderbolt adapters and reports when the port is active or ready.",
   "shell-version": ["45", "46", "47", "48", "49", "50"],
-  "url": "https://github.com/networkOctopus/LinuxBook-Air",
+  "url": "https://github.com/networkoctopus/Silverletter",
   "version": 8
 }

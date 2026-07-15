@@ -2,23 +2,23 @@
 set -ouex pipefail
 
 ### ── Thunderbolt hot-plug kernel argument ──
-install -Dm644 /ctx/thunderbolt-extension/linuxbook-air-thunderbolt.toml \
-    /usr/lib/bootc/kargs.d/linuxbook-air-thunderbolt.toml
+install -Dm644 /ctx/thunderbolt-extension/silverletter-thunderbolt.toml \
+    /usr/lib/bootc/kargs.d/silverletter-thunderbolt.toml
 
 ### ── Automatic hotplug control and suspend safety ──
-install -Dm755 /ctx/thunderbolt-extension/linuxbook-air-thunderbolt-control \
-    /usr/libexec/linuxbook-air-thunderbolt-control
+install -Dm755 /ctx/thunderbolt-extension/silverletter-thunderbolt-control \
+    /usr/libexec/silverletter-thunderbolt-control
 
-install -Dm644 /ctx/thunderbolt-extension/linuxbook-air-thunderbolt-sleep.service \
-    /usr/lib/systemd/system/linuxbook-air-thunderbolt-sleep.service
-install -Dm644 /ctx/thunderbolt-extension/linuxbook-air-thunderbolt-hotplug.service \
-    /usr/lib/systemd/system/linuxbook-air-thunderbolt-hotplug.service
-install -Dm644 /ctx/thunderbolt-extension/linuxbook-air-thunderbolt.conf \
-    /usr/lib/tmpfiles.d/linuxbook-air-thunderbolt.conf
-systemctl enable linuxbook-air-thunderbolt-sleep.service
+install -Dm644 /ctx/thunderbolt-extension/silverletter-thunderbolt-sleep.service \
+    /usr/lib/systemd/system/silverletter-thunderbolt-sleep.service
+install -Dm644 /ctx/thunderbolt-extension/silverletter-thunderbolt-hotplug.service \
+    /usr/lib/systemd/system/silverletter-thunderbolt-hotplug.service
+install -Dm644 /ctx/thunderbolt-extension/silverletter-thunderbolt.conf \
+    /usr/lib/tmpfiles.d/silverletter-thunderbolt.conf
+systemctl enable silverletter-thunderbolt-sleep.service
 
 ### ── GNOME Shell indicator ──
-THUNDERBOLT_UUID="thunderbolt@linuxbook-air.local"
+THUNDERBOLT_UUID="thunderbolt@silverletter.local"
 THUNDERBOLT_EXTENSION_DIR="/usr/share/gnome-shell/extensions/${THUNDERBOLT_UUID}"
 install -d -m 0755 "$THUNDERBOLT_EXTENSION_DIR"
 cp -a /ctx/thunderbolt-extension/extension/. "$THUNDERBOLT_EXTENSION_DIR/"

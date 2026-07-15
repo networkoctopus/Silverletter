@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Silverletter Setup
+Comment=Install, remove, or reset optional Silverletter components
+Icon=silverletter-setup
+Exec=/usr/libexec/silverletter-post-deploy-setup-launch.sh --force
+Terminal=false
+StartupNotify=true
+Categories=Settings;System;
+Keywords=Silverletter;Toshy;theme;Firefox;setup;remove;reset;

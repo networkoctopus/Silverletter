@@ -1,4 +1,4 @@
-export image_name := env("IMAGE_NAME", "linuxbook-air") # output image name, usually same as repo name, change as needed
+export image_name := env("IMAGE_NAME", "silverletter") # output image name, usually same as repo name, change as needed
 export default_tag := env("DEFAULT_TAG", "latest")
 export bib_image := env("BIB_IMAGE", "quay.io/centos-bootc/bootc-image-builder:latest")
 
@@ -100,7 +100,7 @@ build $target_image=image_name $tag=default_tag:
         --tag "${target_image}:${tag}" \
         .
 
-# Build the Apple Silicon image using the Fedora Asahi Remix base image
+# Build the Apple silicon image using the Fedora Asahi Remix base image
 [group('Build')]
 build-asahi $target_image=(image_name + "-asahi") $tag=default_tag:
     #!/usr/bin/env bash

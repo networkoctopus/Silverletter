@@ -3,8 +3,8 @@ set -ouex pipefail
 
 ### ── Kernel arguments ──
 # Tell firmware this is not macOS (creates Linux-accessible AHCI paths).
-install -Dm644 /ctx/power/linuxbook-air.toml \
-    /usr/lib/bootc/kargs.d/linuxbook-air.toml
+install -Dm644 /ctx/power/silverletter.toml \
+    /usr/lib/bootc/kargs.d/silverletter.toml
 
 ### ── Kernel module config ──
 # Disable Thunderbolt driver (reduces power draw on MacBook Air 7,1)
@@ -20,9 +20,9 @@ install -Dm644 /ctx/power/99-thunderbolt-pm.rules \
 
 install -Dm755 /ctx/power/tb-powerdown.sh /usr/libexec/tb-powerdown.sh
 
-install -Dm644 /ctx/power/linuxbook-air-thunderbolt-powerdown.service \
-    /usr/lib/systemd/system/linuxbook-air-thunderbolt-powerdown.service
-systemctl enable linuxbook-air-thunderbolt-powerdown.service
+install -Dm644 /ctx/power/silverletter-thunderbolt-powerdown.service \
+    /usr/lib/systemd/system/silverletter-thunderbolt-powerdown.service
+systemctl enable silverletter-thunderbolt-powerdown.service
 
 # These are supplied by the Fedora base image. Fail the image build if a future
 # base change removes a dependency used by the always-disabled power-down path.

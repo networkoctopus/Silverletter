@@ -39,10 +39,10 @@ else
     done
 fi
 
-STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/linuxbook-air"
+STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/silverletter"
 DONE_FILE="$STATE_DIR/initial-setup-done"
 SUCCESS_FILE="$STATE_DIR/last-run-success"
-LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/linuxbook-air"
+LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/silverletter"
 LOG_FILE="$LOG_DIR/initial-setup.log"
 FIREFOX_SENTINEL="${XDG_CONFIG_HOME:-$HOME/.config}/mactahoe/.firefox-done"
 FIREFOX_REPO="/usr/share/MacTahoe-gtk-theme"
@@ -50,7 +50,7 @@ TOSHY_CONFIG="$HOME/.config/toshy/toshy_config.py"
 
 FLATPAKS=()
 if [[ "$INSTALL_APPS" == true ]]; then
-    FLATPAKS_FILE="${LINUXBOOK_AIR_FLATPAKS_FILE:-/usr/share/linuxbook-air/default-flatpaks.txt}"
+    FLATPAKS_FILE="${SILVERLETTER_FLATPAKS_FILE:-/usr/share/silverletter/default-flatpaks.txt}"
     if [[ ! -r "$FLATPAKS_FILE" ]]; then
         FLATPAKS_FILE="$(dirname "${BASH_SOURCE[0]}")/default-flatpaks.txt"
     fi
@@ -70,7 +70,7 @@ progress() {
 }
 
 wait_to_close() {
-    [[ "${LINUXBOOK_AIR_EMBEDDED:-0}" == 1 ]] && return
+    [[ "${SILVERLETTER_EMBEDDED:-0}" == 1 ]] && return
     printf '\n'
     read -r -p "Press Enter to close this window… " || true
 }

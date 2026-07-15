@@ -1,8 +1,8 @@
 #!/bin/bash
-# Privileged backend for automatic LinuxBook-Air Thunderbolt power control.
+# Privileged backend for automatic Silverletter Thunderbolt power control.
 set -euo pipefail
 
-readonly STATE_DIR="/run/linuxbook-air"
+readonly STATE_DIR="/run/silverletter"
 readonly STATE_FILE="${STATE_DIR}/thunderbolt-enabled"
 readonly STATE_EVENT_FILE="${STATE_DIR}/thunderbolt-state-changed"
 readonly SUSPEND_FILE="${STATE_DIR}/thunderbolt-suspending"
@@ -10,7 +10,7 @@ readonly LEGACY_RESTART_FILE="${STATE_DIR}/thunderbolt-restart-required"
 readonly CONTROL_LOCK="${STATE_DIR}/thunderbolt-control.lock"
 readonly POWERDOWN_LOCK="/run/tb-powerdown.lock"
 readonly POWERDOWN_HELPER="/usr/libexec/tb-powerdown.sh"
-readonly LOG_TAG="linuxbook-air-thunderbolt"
+readonly LOG_TAG="silverletter-thunderbolt"
 
 log_event() {
     local priority="$1"

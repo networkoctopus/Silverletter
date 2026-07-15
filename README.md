@@ -1,20 +1,25 @@
 <h1>
-  <img src="build_files/post-deploy-setup/linuxbook-air-setup.svg" width="48" align="absmiddle">
-  LinuxBook-Air
+  <img src="build_files/post-deploy-setup/silverletter-setup.svg" width="48" align="absmiddle">
+  Silverletter
 </h1>
 
-An immutable Fedora GNOME image for the Intel MacBook Air, built on [Universal Blue's `silverblue-main`](https://github.com/ublue-os/main/pkgs/container/silverblue-main). Currently tracking [Fedora 44](https://fedoraproject.org).
+**A four-watt love letter to old hardware.**
 
-Instead of layering required packages onto stock Silverblue — which isn't the preferred convention with bootc/rpm-ostree - I created this instead. Along with serving as a playground on bootc - this became my daily driver since early 2026 - so I decided it was worth sharing.
+Silverletter is an independently produced bootc image based on [Universal Blue's `silverblue-main`](https://github.com/ublue-os/main/pkgs/container/silverblue-main) and Fedora Atomic Desktop technology. It is intended for selected Intel-based MacBook Air computers and currently tracks [Fedora 44](https://fedoraproject.org).
 
-This little project started with the great [Universal Blue image-template](https://github.com/ublue-os/image-template). The aim was to create a reliable out-of-box Fedora Silverblue experience on my 11-year-old, 11-inch Mac: all drivers included, kept close to stock GNOME, with a particular focus on **maximising battery life**.
+This project began as a playground for bootc and the excellent [Universal Blue image-template](https://github.com/ublue-os/image-template). Instead of repeatedly layering the packages my old laptop needed onto stock Silverblue, I built a complete image around them. It became my daily driver in early 2026 and eventually felt worth sharing.
+
+More than anything, Silverletter is a love letter to my 11-year-old, 11-inch laptop: a reliable out-of-box GNOME system with the necessary drivers included, kept close to its upstream base, and carefully tuned to **maximise battery life**.
+
+> [!NOTE]
+> Silverletter is an independent community project. It is not affiliated with, sponsored by, or endorsed by Apple Inc., Intel Corporation, Red Hat, the Fedora Project, Universal Blue, or the Asahi Linux project.
 
 At 50% display brightness with Wi-Fi enabled and no apps open, my machine draws around **4–4.5 W**, or roughly 10 hours of battery life (if you aren't doing anything else, of course :P).  Not that I use my machine this way, but for reference - with auto-brightness off and brightness at minimum, power usage drops to **3.3–3.5 W!**  Battery condition, open apps, Wi-Fi usage, peripherals, and exact hardware all contribute.
 
 > [!IMPORTANT]
 > **Thunderbolt is powered down when unused and activates automatically when a device is connected.** Hotplug and suspend/resume have been tested with an Apple Thunderbolt to Gigabit Ethernet Adapter; other Thunderbolt devices may work but are not guaranteed.
 
-Thunderbolt control events are recorded in the system journal. For troubleshooting, run `sudo journalctl -b -t linuxbook-air-thunderbolt`.
+Thunderbolt control events are recorded in the system journal. For troubleshooting, run `sudo journalctl -b -t silverletter-thunderbolt`.
 
 ## What's in this image - credits to the maintainers of these projects
 
@@ -22,8 +27,8 @@ Thunderbolt control events are recorded in the system journal. For troubleshooti
 - Broadcom Wi-Fi from [Universal Blue akmods](https://github.com/ublue-os/akmods), plus the [FaceTime HD driver](https://github.com/patjak/facetimehd) and [firmware extractor](https://github.com/patjak/facetimehd-firmware), baked in
 - PCIe ASPM tuning, firmware compatibility tweaks, and a MacBook Air display wake fix, Automatic [PowerTOP](https://github.com/fenrus75/powertop) tuning, Wi-Fi power saving 
 - A smaller, hardware-focused initramfs that reduced boot time from ~40 to ~25 seconds on my machine. The initramfs in [`silverblue-main`](https://github.com/ublue-os/main) is ~230MB+ whereas this image's initramfs is ~75MB. Since updates occur on restart, I figured the faster boot was worth pursuing. 
-- Mac-like shortcuts provided by the fantastic [Toshy](https://github.com/RedBearAK/Toshy) project
-- A first-run Setup app that optionally installs Toshy, applies Mac style themes to the desktop and Firefox, and restores the GNOME Flatpak apps from [Flathub](https://flathub.org/) that usually came with Silverblue. A separate option replaces existing system Flatpaks with Flathub equivalents when the same application ID is available (Firefox is already included in the image). The setup app can be re-run anytime to remove these additions.
+- Shortcuts familiar to macOS users, provided by the fantastic [Toshy](https://github.com/RedBearAK/Toshy) project
+- A first-run Setup app that optionally installs Toshy, applies macOS-inspired themes to the desktop and Firefox, and restores the GNOME Flatpak apps from [Flathub](https://flathub.org/) that usually came with Silverblue. A separate option replaces existing system Flatpaks with Flathub equivalents when the same application ID is available (Firefox is already included in the image). The setup app can be re-run anytime to remove these additions.
 - [mbpfan](https://github.com/linux-on-mac/mbpfan) for MacBook fan control
 - [uupd](https://github.com/ublue-os/uupd) automatic image and Flatpak updates
 - GNOME extensions installed and enabled system-wide: [AppIndicator and KStatusNotifierItem Support](https://extensions.gnome.org/extension/615/appindicator-support/), [Xremap](https://extensions.gnome.org/extension/5060/xremap/), [Vitals](https://extensions.gnome.org/extension/1460/vitals/), [User Themes](https://extensions.gnome.org/extension/19/user-themes/), [Dash to Dock](https://extensions.gnome.org/extension/307/dash-to-dock/), and the [uupd Indicator](https://github.com/Vyachean/uupd-indicator) with restart-required notifications
@@ -35,7 +40,7 @@ Thunderbolt control events are recorded in the system journal. For troubleshooti
 
 The image is developed and daily-tested on a **2015 11" MacBook Air (`MacBookAir7,1`)**. Its initramfs and power configuration are intentionally tailored to this generation.
 
-These closely related Intel MacBook Airs are reasonable candidates, but are **untested unless stated otherwise**:
+These closely related Intel-based MacBook Air computers are reasonable candidates, but are **untested unless stated otherwise**:
 
 | Model identifier | Apple model | Confidence |
 | --- | --- | --- |
@@ -46,7 +51,7 @@ These closely related Intel MacBook Airs are reasonable candidates, but are **un
 | `MacBookAir5,1` | 11-inch, Mid 2012 | Earlier related hardware; least certain |
 | `MacBookAir5,2` | 13-inch, Mid 2012 | Earlier related chassis; least certain |
 
-Do not assume that other MacBooks or MacBook Pros are compatible. The trimmed initramfs omits drivers and storage features this specific machine does not need.
+Do not assume that other MacBook or MacBook Pro computers are compatible. The trimmed initramfs omits drivers and storage features this specific machine does not need.
 
 ## Switch from another bootc system
 
@@ -56,10 +61,10 @@ If you already run a bootc-managed system, inspect its current state first:
 sudo bootc status
 ```
 
-Then switch to LinuxBook-Air and reboot into the new deployment:
+Then switch to Silverletter and reboot into the new deployment:
 
 ```bash
-sudo bootc switch ghcr.io/networkoctopus/linuxbook-air:latest
+sudo bootc switch ghcr.io/networkoctopus/silverletter:latest
 sudo systemctl reboot
 ```
 
@@ -80,9 +85,9 @@ sudo systemctl reboot
 
 ## Install with the Anaconda ISO
 
-The installer ISO is built weekly. Open the [Build disk images workflow](https://github.com/networkoctopus/LinuxBook-Air/actions/workflows/build-iso.yml), select the newest successful scheduled run, and download the artifact from the **Artifacts** section at the bottom of the run page. Extract the archive to get the Anaconda ISO, then write it to a USB drive with your preferred image writer.
+The installer ISO is built weekly. Open the [Build disk images workflow](https://github.com/networkoctopus/Silverletter/actions/workflows/build-iso.yml), select the newest successful scheduled run, and download the artifact from the **Artifacts** section at the bottom of the run page. Extract the archive to get the Anaconda ISO, then write it to a USB drive with your preferred image writer.
 
-This installer ISO is for Intel Macs only.
+This installer ISO is for supported x86-based Mac computers only.
 
 Note: GitHub requires you to be signed in to download workflow artifacts.
 
@@ -91,13 +96,15 @@ Note: GitHub requires you to be signed in to download workflow artifacts.
 
 ## Updating
 
-The bootc image is rebuilt **twice weekly**, every Wednesday and Sunday. Manual builds may also appear in the Actions history.
+The x86 `latest` image is rebuilt from `main` after pushes and **twice weekly**, every Wednesday and Sunday. Pushes to the `testing` branch do not trigger a build. To publish an x86 test image, manually run the **Build container image** workflow from `testing`, select the x86 variant, enable publishing, and leave the tag as `testing`. This publishes `ghcr.io/networkoctopus/silverletter:testing`.
+
+Asahi builds are also manual only and publish separately as `ghcr.io/networkoctopus/silverletter-asahi:testing` when run with the Asahi variant.
 
 `uupd` checks for and stages operating-system and Flatpak updates automatically. The panel indicator shows update activity and tells you when a reboot is needed to enter the staged deployment. GNOME Software updates are disabled because `uupd` handles them.
 
-## Check the Intel power tuning
+## Check the x86 power tuning
 
-The Intel image includes a diagnostic script that checks the power configuration and reports tunables that are active, missing, or unexpected:
+The x86 image includes a diagnostic script that checks the power configuration and reports tunables that are active, missing, or unexpected:
 
 ```bash
 sudo power-audit.sh
@@ -137,27 +144,31 @@ sudo systemctl restart NetworkManager
 
 Have fun, but there are no warranties. This personal project is shared in the hope that it is useful. It makes deliberate hardware trade-offs, has only been validated on the test machine, and may fail to boot or work correctly elsewhere. Keep backups and know how to select an earlier deployment before experimenting.
 
-## Apple Silicon edition — currently testing
+Silverletter is not provided or supported by Apple, Intel, Red Hat, the Fedora Project, Universal Blue, or the Asahi Linux project. Official Fedora software is available from the [Fedora Project](https://fedoraproject.org/).
 
-An Apple Silicon edition is being tested using the experimental [Fedora Asahi Remix Atomic Silverblue image](https://github.com/fedora-asahi-remix-atomic-desktops/images), sharing the desktop customisations without applying the Intel hardware workarounds.
+Apple, Mac, MacBook Air, MacBook Pro, macOS, and Apple silicon are trademarks of Apple Inc. Intel and Thunderbolt are trademarks of Intel Corporation or its subsidiaries. Fedora is a trademark of Red Hat, Inc. Linux® is the registered trademark of Linus Torvalds in the U.S. and other countries.
+
+## Experimental Apple silicon build using Fedora Asahi Remix
+
+An Apple silicon build is being tested using the experimental [Fedora Asahi Remix Atomic Silverblue image](https://github.com/fedora-asahi-remix-atomic-desktops/images). It shares the desktop customisations without applying the x86 hardware workarounds.
 
 The image is published separately as:
 
 ```text
-ghcr.io/networkoctopus/linuxbook-air-asahi:latest
+ghcr.io/networkoctopus/silverletter-asahi:testing
 ```
 
-It uses [`quay.io/fedora-asahi-remix-atomic-desktops/silverblue:44`](https://quay.io/repository/fedora-asahi-remix-atomic-desktops/silverblue) as its base. It includes the shared packages, GNOME extensions, themes, first-run setup, and automatic-update configuration from this project. The Intel kmods, power tuning, hardware fixes, and custom initramfs are intentionally omitted because the Asahi base provides the platform support.
+It uses [`quay.io/fedora-asahi-remix-atomic-desktops/silverblue:44`](https://quay.io/repository/fedora-asahi-remix-atomic-desktops/silverblue) as its base. It includes the shared packages, GNOME extensions, themes, first-run setup, and automatic-update configuration from this project. The x86 kmods, power tuning, hardware fixes, and custom initramfs are intentionally omitted because the Asahi base provides the platform support.
 
 The upstream Atomic Asahi images describe themselves as unofficial and experimental. They are separate from the stable Fedora Asahi Remix distribution and are not endorsed by the Asahi developers.
 
-Apple Silicon machines must first be installed using the Fedora Asahi Remix installation process. From an existing bootc-managed Fedora Asahi system, switch to this image and reboot:
+Apple silicon machines must first be installed using the Fedora Asahi Remix installation process. From an existing bootc-managed Fedora Asahi system, switch to this image and reboot:
 
 ```bash
-sudo bootc switch ghcr.io/networkoctopus/linuxbook-air-asahi:latest
+sudo bootc switch ghcr.io/networkoctopus/silverletter-asahi:testing
 sudo systemctl reboot
 ```
 
 After rebooting, verify the deployment with `sudo bootc status`.
 
-The Intel build runs on an x86-64 runner using `Containerfile`; the Asahi build runs natively on an ARM64 runner using `Containerfile.asahi`. To publish a test build, open the **Build container image** workflow in GitHub Actions, choose **Run workflow**, select the `testing` branch and the Asahi variant, enable **Publish the built images to GHCR**, and leave the tag as `testing`. This publishes `linuxbook-air-asahi:testing` without replacing the `latest` image.
+The x86 build runs on an x86-64 runner using `Containerfile`; the Asahi build runs natively on an ARM64 runner using `Containerfile.asahi`. Asahi is never built by the schedule or a normal push. To publish a test build, open the **Build container image** workflow in GitHub Actions, choose **Run workflow**, select the `testing` branch and the Asahi variant, enable **Publish the built images to GHCR**, and leave the tag as `testing`.

@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Single-window GTK frontend for LinuxBook-Air's per-user setup."""
+"""Single-window GTK frontend for Silverletter's per-user setup."""
 
 import os
 import sys
@@ -12,24 +12,24 @@ gi.require_version("Vte", "3.91")
 from gi.repository import Gio, GLib, Gtk, Vte
 
 
-APP_ID = "io.github.networkoctopus.LinuxBookAirSetup"
-SETUP_SCRIPT = "/usr/libexec/linuxbook-air-post-deploy-setup.sh"
+APP_ID = "io.github.networkoctopus.SilverletterSetup"
+SETUP_SCRIPT = "/usr/libexec/silverletter-post-deploy-setup.sh"
 
 
 class SetupWindow(Gtk.ApplicationWindow):
     def __init__(self, application: Gtk.Application, force_run: bool) -> None:
-        super().__init__(application=application, title="LinuxBook-Air Setup")
+        super().__init__(application=application, title="Silverletter Setup")
         self.force_run = force_run
         self.set_default_size(780, 680)
         self.set_size_request(640, 520)
-        self.set_icon_name("linuxbook-air-setup")
+        self.set_icon_name("silverletter-setup")
 
         config_home = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
         state_home = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state"))
-        self.state_dir = config_home / "linuxbook-air"
+        self.state_dir = config_home / "silverletter"
         self.success_file = self.state_dir / "last-run-success"
         self.skip_file = self.state_dir / "initial-setup-skipped"
-        self.log_file = state_home / "linuxbook-air/initial-setup.log"
+        self.log_file = state_home / "silverletter/initial-setup.log"
         self.state_dir.mkdir(parents=True, exist_ok=True)
 
         self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.SLIDE_LEFT_RIGHT)
@@ -99,7 +99,7 @@ class SetupWindow(Gtk.ApplicationWindow):
     def _build_manage_page(self) -> None:
         page = self.page_box()
         page.append(self.heading("Setup"))
-        page.append(self.body("Install, remove, or reset optional LinuxBook-Air components."))
+        page.append(self.body("Install, remove, or reset optional Silverletter components."))
 
         install = self.button("Install or apply components", lambda _b: self.show_page("install"), True)
         install.set_hexpand(True)
@@ -117,7 +117,7 @@ class SetupWindow(Gtk.ApplicationWindow):
 
     def _build_install_page(self) -> None:
         page = self.page_box()
-        page.append(self.heading("Welcome to LinuxBook-Air"))
+        page.append(self.heading("Welcome to Silverletter"))
         page.append(self.body(
             "Choose the optional components to set up. You can install, remove, or reset them later "
             "by opening Setup from the application launcher. Default GNOME Flatpaks can be restored, "
@@ -130,8 +130,8 @@ class SetupWindow(Gtk.ApplicationWindow):
 
         self.install_checks = {
             "--toshy": Gtk.CheckButton(label="Toshy keyboard remapping"),
-            "--desktop-theme": Gtk.CheckButton(label="MacOS desktop theme and icons"),
-            "--firefox": Gtk.CheckButton(label="MacOS Firefox styling"),
+            "--desktop-theme": Gtk.CheckButton(label="macOS-inspired desktop theme and icons"),
+            "--firefox": Gtk.CheckButton(label="macOS-inspired Firefox styling"),
             "--apps": Gtk.CheckButton(label="Restore default GNOME Flatpaks"),
             "--replace-flatpaks": Gtk.CheckButton(
                 label=(
@@ -146,7 +146,7 @@ class SetupWindow(Gtk.ApplicationWindow):
 
         credits = self.body(
             "Keyboard remapping is powered by <a href='https://github.com/RedBearAK/Toshy'>Toshy</a>, "
-            "created by RedBearAK. MacOS themes are created by "
+            "created by RedBearAK. The macOS-inspired themes are created by "
             "<a href='https://github.com/vinceliuice'>vinceliuice</a>.",
             markup=True,
         )
@@ -193,8 +193,8 @@ class SetupWindow(Gtk.ApplicationWindow):
 
         self.remove_checks = {
             "--remove-toshy": Gtk.CheckButton(label="Toshy keyboard remapping"),
-            "--revert-desktop-theme": Gtk.CheckButton(label="Revert MacOS desktop theme and icons"),
-            "--remove-firefox": Gtk.CheckButton(label="MacOS Firefox styling"),
+            "--revert-desktop-theme": Gtk.CheckButton(label="Revert macOS-inspired desktop theme and icons"),
+            "--remove-firefox": Gtk.CheckButton(label="macOS-inspired Firefox styling"),
         }
         for check in self.remove_checks.values():
             page.append(check)
@@ -223,7 +223,7 @@ class SetupWindow(Gtk.ApplicationWindow):
         page.set_margin_bottom(18)
         page.set_margin_start(18)
         page.set_margin_end(18)
-        page.append(self.heading("LinuxBook-Air Setup"))
+        page.append(self.heading("Silverletter Setup"))
         page.append(self.body("Setup output and interactive questions appear below."))
 
         self.terminal = Vte.Terminal()
@@ -320,7 +320,7 @@ class SetupWindow(Gtk.ApplicationWindow):
         self.show_page("terminal")
         self.terminal.grab_focus()
         environment = os.environ.copy()
-        environment["LINUXBOOK_AIR_EMBEDDED"] = "1"
+        environment["SILVERLETTER_EMBEDDED"] = "1"
         envv = [f"{key}={value}" for key, value in environment.items()]
         argv = ["/bin/bash", SETUP_SCRIPT, *self.pending_arguments]
 
@@ -350,7 +350,7 @@ class SetupWindow(Gtk.ApplicationWindow):
                 message = "The selected optional components were removed or reset."
             else:
                 message = (
-                    "The selected LinuxBook-Air components are installed.\n\n"
+                    "The selected Silverletter components are installed.\n\n"
                     "MacTahoe and WhiteSur themes are available in GNOME Tweaks under Appearance."
                 )
             self._show_result(True, message)

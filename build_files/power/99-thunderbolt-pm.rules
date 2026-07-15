@@ -6,37 +6,37 @@
 # plug request and automatically claims the hierarchy before teardown wins.
 
 ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x156b", \
-    TEST!="/run/linuxbook-air/thunderbolt-enabled", \
-    TAG+="systemd", ENV{SYSTEMD_WANTS}+="linuxbook-air-thunderbolt-powerdown.service"
+    TEST!="/run/silverletter/thunderbolt-enabled", \
+    TAG+="systemd", ENV{SYSTEMD_WANTS}+="silverletter-thunderbolt-powerdown.service"
 
 ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x156a", \
-    TEST!="/run/linuxbook-air/thunderbolt-enabled", \
-    TAG+="systemd", ENV{SYSTEMD_WANTS}+="linuxbook-air-thunderbolt-powerdown.service"
+    TEST!="/run/silverletter/thunderbolt-enabled", \
+    TAG+="systemd", ENV{SYSTEMD_WANTS}+="silverletter-thunderbolt-powerdown.service"
 
 # KERNELS matches a parent, so this excludes the built-in 06:03.0 bridge itself
 # and matches any external PCIe-tunnelled bridge or endpoint below it. The
 # direct RUN helper only creates a cancellation marker; systemd does the slow
 # driver and runtime-PM work outside the udev worker.
 ACTION=="add", SUBSYSTEM=="pci", KERNELS=="0000:06:03.0", \
-    RUN+="/usr/libexec/linuxbook-air-thunderbolt-control hotplug-claim", \
-    TAG+="systemd", ENV{SYSTEMD_WANTS}+="linuxbook-air-thunderbolt-hotplug.service"
+    RUN+="/usr/libexec/silverletter-thunderbolt-control hotplug-claim", \
+    TAG+="systemd", ENV{SYSTEMD_WANTS}+="silverletter-thunderbolt-hotplug.service"
 
 # Keep every function awake while the automatically claimed session is active.
 ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x156b", \
-    TEST=="/run/linuxbook-air/thunderbolt-enabled", ATTR{power/control}="on"
+    TEST=="/run/silverletter/thunderbolt-enabled", ATTR{power/control}="on"
 
 ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x156a", \
-    TEST=="/run/linuxbook-air/thunderbolt-enabled", ATTR{power/control}="on"
+    TEST=="/run/silverletter/thunderbolt-enabled", ATTR{power/control}="on"
 
 ACTION=="add", SUBSYSTEM=="pci", KERNELS=="0000:06:03.0", \
-    TEST=="/run/linuxbook-air/thunderbolt-enabled", ATTR{power/control}="on"
+    TEST=="/run/silverletter/thunderbolt-enabled", ATTR{power/control}="on"
 
 # Removal is informational only. Keep the session armed for efficient
 # reconnection, but tell the GNOME indicator to refresh after the external
 # topology changes. DEVPATH remains available for remove events even though
 # the device's sysfs attributes may already be gone.
 ACTION=="remove", SUBSYSTEM=="pci", DEVPATH=="*/0000:06:03.0/*", \
-    RUN+="/usr/libexec/linuxbook-air-thunderbolt-control hotplug-notify"
+    RUN+="/usr/libexec/silverletter-thunderbolt-control hotplug-notify"
 
 # Enable power management for Thunderbolt controllers and ports
 #ACTION=="add", SUBSYSTEM=="pci", KERNEL=="0000:05:00.0", ATTR{power/control}="auto"

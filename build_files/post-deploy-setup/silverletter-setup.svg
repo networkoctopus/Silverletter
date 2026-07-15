@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!-- Silverletter setup icon. -->
   <rect x="30" y="30" width="196" height="148" rx="14" fill="#252a34"/>
   <rect x="42" y="42" width="172" height="124" rx="5" fill="#87a2ff"/>
 

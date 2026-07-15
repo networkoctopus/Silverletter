@@ -7,13 +7,13 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
-const CONTROL = '/usr/libexec/linuxbook-air-thunderbolt-control';
-const STATE_DIR = '/run/linuxbook-air';
+const CONTROL = '/usr/libexec/silverletter-thunderbolt-control';
+const STATE_DIR = '/run/silverletter';
 const ENABLED_COLOR = '#ed333b';
 const DISABLED_COLOR = '#ffffff';
 
 const ThunderboltIndicator = GObject.registerClass({
-    GTypeName: 'LinuxBookAirThunderboltIndicator',
+    GTypeName: 'SilverletterThunderboltIndicator',
 },
 class ThunderboltIndicator extends PanelMenu.Button {
     _init(extension) {

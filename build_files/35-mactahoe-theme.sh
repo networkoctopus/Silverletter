@@ -88,7 +88,7 @@ test -f /usr/share/gnome-background-properties/MacTahoe.xml
 rm -rf "$REPO_DIR/.git"
 
 ### Keep the stock Adwaita desktop appearance for new users, with dark style
-# and the paired MacTahoe wallpaper. The first-run setup offers MacOS styling.
+# and the paired MacTahoe wallpaper. The first-run setup offers macOS-inspired styling.
 mkdir -p /etc/dconf/db/local.d
 cat > /etc/dconf/db/local.d/10-mactahoe-theme <<'EOF'
 [org/gnome/desktop/interface]

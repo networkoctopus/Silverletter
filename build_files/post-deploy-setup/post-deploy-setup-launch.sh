@@ -10,11 +10,11 @@ elif (( $# )); then
     exit 2
 fi
 
-STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/linuxbook-air"
+STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/silverletter"
 DONE_FILE="$STATE_DIR/initial-setup-done"
 SKIP_FILE="$STATE_DIR/initial-setup-skipped"
 GNOME_SETUP_DONE="${XDG_CONFIG_HOME:-$HOME/.config}/gnome-initial-setup-done"
-SETUP_APP="/usr/libexec/linuxbook-air-setup-app.py"
+SETUP_APP="/usr/libexec/silverletter-setup-app.py"
 
 mkdir -p "$STATE_DIR"
 

@@ -1,14 +1,14 @@
 [Unit]
-Description=LinuxBook Air per-user initial setup
-ConditionPathExists=!%h/.config/linuxbook-air/initial-setup-done
-ConditionPathExists=!%h/.config/linuxbook-air/initial-setup-skipped
+Description=Silverletter per-user initial setup
+ConditionPathExists=!%h/.config/silverletter/initial-setup-done
+ConditionPathExists=!%h/.config/silverletter/initial-setup-skipped
 After=graphical-session.target
 PartOf=graphical-session.target
 CollectMode=inactive-or-failed
 
 [Service]
 Type=simple
-ExecStart=/usr/libexec/linuxbook-air-post-deploy-setup-launch.sh
+ExecStart=/usr/libexec/silverletter-post-deploy-setup-launch.sh
 # The interactive installer may wait for sudo credentials or user answers.
 TimeoutStartSec=0
 TimeoutStopSec=5

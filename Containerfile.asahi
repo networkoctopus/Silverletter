@@ -8,7 +8,7 @@ FROM quay.io/fedora-asahi-remix-atomic-desktops/silverblue:${FEDORA_VERSION}
 ARG FEDORA_VERSION
 
 ### SHARED DESKTOP CUSTOMISATIONS
-# Apple Silicon hardware support, power configuration, fixes, and initramfs are
+# Apple silicon hardware support, power configuration, fixes, and initramfs are
 # provided by the Fedora Asahi Remix base image.
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=cache,dst=/var/cache \

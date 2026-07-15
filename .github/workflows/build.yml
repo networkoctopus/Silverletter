@@ -5,7 +5,8 @@ on:
     branches:
       - main
   schedule:
-    - cron: '0 3 * * 3,0' # Every Wednesday and Sunday at 3:00 UTC    
+    # Scheduled workflows run from the default branch (main) only.
+    - cron: '0 3 * * 3,0' # Every Wednesday and Sunday at 3:00 UTC
   push:
     branches:
       - main
@@ -16,11 +17,11 @@ on:
       variant:
         description: "Image variant to build"
         required: true
-        default: "asahi"
+        default: "x86"
         type: choice
         options:
+          - x86
           - asahi
-          - intel
       publish:
         description: "Publish the built images to GHCR"
         required: true
@@ -33,8 +34,8 @@ on:
         type: string
 
 env:
-  IMAGE_DESC: "My Customized Universal Blue Image"
-  IMAGE_KEYWORDS: "bootc,ublue,universal-blue"
+  IMAGE_DESC: "Silverletter: a power-conscious bootc image for selected Mac computers"
+  IMAGE_KEYWORDS: "bootc,ublue,universal-blue,mac,power-saving"
   IMAGE_LOGO_URL: "https://avatars.githubusercontent.com/u/120078124?s=200&v=4"  # Put your own image here for a fancy profile on https://artifacthub.io/!
   IMAGE_REGISTRY: "ghcr.io/${{ github.repository_owner }}"  # do not edit
   DEFAULT_TAG: "${{ github.event_name == 'workflow_dispatch' && inputs.tag || 'latest' }}"
@@ -47,12 +48,14 @@ concurrency:
 jobs:
   build_push:
     name: Build and push ${{ matrix.variant }} image
-    runs-on: ${{ matrix.variant == 'intel' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
+    runs-on: ${{ matrix.variant == 'x86' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
 
     strategy:
       fail-fast: false
       matrix:
-        variant: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.variant) || '["intel","asahi"]') }}
+        # Automatic events build x86 only. workflow_dispatch can manually
+        # build either x86 or Asahi from the selected branch.
+        variant: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.variant) || '["x86"]') }}
 
     permissions:
       contents: read
@@ -64,7 +67,7 @@ jobs:
         run: |
           # Lowercase the image uri
           echo "IMAGE_REGISTRY=${IMAGE_REGISTRY,,}" >> ${GITHUB_ENV}
-          IMAGE_NAME="${{ github.event.repository.name }}"
+          IMAGE_NAME="silverletter"
           CONTAINERFILE="Containerfile"
           if [[ "${{ matrix.variant }}" == "asahi" ]]; then
             IMAGE_NAME="${IMAGE_NAME}-asahi"
@@ -79,7 +82,7 @@ jobs:
 
       # This is optional, but if you see that your builds are way too big for the runners, you can enable this by uncommenting the following lines:
       - name: Maximize build space
-        if: matrix.variant == 'intel'
+        if: matrix.variant == 'x86'
         uses: ublue-os/remove-unwanted-software@695eb75bc387dbcd9685a8e72d23439d8686cba6
 
       - name: Install ARM build dependencies

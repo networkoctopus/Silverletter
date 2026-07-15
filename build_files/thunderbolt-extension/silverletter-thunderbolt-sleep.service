@@ -6,8 +6,8 @@ StopWhenUnneeded=yes
 
 [Service]
 Type=oneshot
-ExecStart=/usr/libexec/linuxbook-air-thunderbolt-control prepare-suspend
-ExecStop=/usr/libexec/linuxbook-air-thunderbolt-control resume
+ExecStart=/usr/libexec/silverletter-thunderbolt-control prepare-suspend
+ExecStop=/usr/libexec/silverletter-thunderbolt-control resume
 RemainAfterExit=yes
 TimeoutStartSec=60
 TimeoutStopSec=45

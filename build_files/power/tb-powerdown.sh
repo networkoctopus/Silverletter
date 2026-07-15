@@ -1,7 +1,7 @@
 #!/bin/sh
-STATEFILE=/run/linuxbook-air/thunderbolt-enabled
+STATEFILE=/run/silverletter/thunderbolt-enabled
 LOCKFILE=/run/tb-powerdown.lock
-LOG_TAG=linuxbook-air-thunderbolt
+LOG_TAG=silverletter-thunderbolt
 if [ -e "$STATEFILE" ]; then
     logger -t "$LOG_TAG" "action=powerdown result=skipped reason=temporary-enable-active"
     exit 0

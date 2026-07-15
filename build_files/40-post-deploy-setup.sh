@@ -5,7 +5,7 @@ set -ouex pipefail
 # Waits for GNOME Initial Setup to finish, then installs Toshy, applies the
 # Firefox styling, and restores the standard GNOME Flatpaks.
 
-DEFAULT_FLATPAKS_FILE=/usr/share/linuxbook-air/default-flatpaks.txt
+DEFAULT_FLATPAKS_FILE=/usr/share/silverletter/default-flatpaks.txt
 install -Dm644 /ctx/post-deploy-setup/default-flatpaks.txt \
     "$DEFAULT_FLATPAKS_FILE"
 
@@ -40,25 +40,25 @@ fi
 rm -f "$PUNGI_CONF" "$GENERATED_FLATPAKS"
 
 install -Dm755 /ctx/post-deploy-setup/post-deploy-setup.sh \
-    /usr/libexec/linuxbook-air-post-deploy-setup.sh
+    /usr/libexec/silverletter-post-deploy-setup.sh
 
 install -Dm755 /ctx/post-deploy-setup/post-deploy-setup-launch.sh \
-    /usr/libexec/linuxbook-air-post-deploy-setup-launch.sh
+    /usr/libexec/silverletter-post-deploy-setup-launch.sh
 
-install -Dm755 /ctx/post-deploy-setup/linuxbook-air-setup-app.py \
-    /usr/libexec/linuxbook-air-setup-app.py
+install -Dm755 /ctx/post-deploy-setup/silverletter-setup-app.py \
+    /usr/libexec/silverletter-setup-app.py
 
 install -Dm644 /ctx/post-deploy-setup/post-deploy-setup.service \
-    /usr/lib/systemd/user/linuxbook-air-post-deploy-setup.service
+    /usr/lib/systemd/user/silverletter-post-deploy-setup.service
 
-install -Dm644 /ctx/post-deploy-setup/linuxbook-air-setup.desktop \
-    /usr/share/applications/io.github.networkoctopus.LinuxBookAirSetup.desktop
+install -Dm644 /ctx/post-deploy-setup/silverletter-setup.desktop \
+    /usr/share/applications/io.github.networkoctopus.SilverletterSetup.desktop
 
-install -Dm644 /ctx/post-deploy-setup/linuxbook-air-setup.svg \
-    /usr/share/icons/hicolor/scalable/apps/linuxbook-air-setup.svg
+install -Dm644 /ctx/post-deploy-setup/silverletter-setup.svg \
+    /usr/share/icons/hicolor/scalable/apps/silverletter-setup.svg
 gtk-update-icon-cache -f /usr/share/icons/hicolor
 
 # Enable for all users via systemd user preset / wants symlink
 mkdir -p /usr/lib/systemd/user/graphical-session.target.wants
-ln -sf /usr/lib/systemd/user/linuxbook-air-post-deploy-setup.service \
-       /usr/lib/systemd/user/graphical-session.target.wants/linuxbook-air-post-deploy-setup.service
+ln -sf /usr/lib/systemd/user/silverletter-post-deploy-setup.service \
+       /usr/lib/systemd/user/graphical-session.target.wants/silverletter-post-deploy-setup.service

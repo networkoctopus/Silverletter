@@ -28,7 +28,7 @@ if [[ $(id -u) != 0 ]]; then
 fi
 
 TB_FEATURE_INSTALLED=0
-if [[ -x /usr/libexec/linuxbook-air-thunderbolt-control ]]; then
+if [[ -x /usr/libexec/silverletter-thunderbolt-control ]]; then
     TB_FEATURE_INSTALLED=1
 fi
 
@@ -81,17 +81,17 @@ fi
 
 info "Full cmdline: $(cat /proc/cmdline)"
 
-if [[ -f /usr/lib/bootc/kargs.d/linuxbook-air.toml ]]; then
-    pass "kargs.d toml exists: $(cat /usr/lib/bootc/kargs.d/linuxbook-air.toml)"
+if [[ -f /usr/lib/bootc/kargs.d/silverletter.toml ]]; then
+    pass "kargs.d toml exists: $(cat /usr/lib/bootc/kargs.d/silverletter.toml)"
 else
-    fail "kargs.d toml missing at /usr/lib/bootc/kargs.d/linuxbook-air.toml"
+    fail "kargs.d toml missing at /usr/lib/bootc/kargs.d/silverletter.toml"
 fi
 
 if [[ $TB_FEATURE_INSTALLED -eq 1 ]]; then
-    if [[ -f /usr/lib/bootc/kargs.d/linuxbook-air-thunderbolt.toml ]]; then
-        pass "Thunderbolt kargs.d toml exists: $(cat /usr/lib/bootc/kargs.d/linuxbook-air-thunderbolt.toml)"
+    if [[ -f /usr/lib/bootc/kargs.d/silverletter-thunderbolt.toml ]]; then
+        pass "Thunderbolt kargs.d toml exists: $(cat /usr/lib/bootc/kargs.d/silverletter-thunderbolt.toml)"
     else
-        fail "Thunderbolt kargs.d toml missing at /usr/lib/bootc/kargs.d/linuxbook-air-thunderbolt.toml"
+        fail "Thunderbolt kargs.d toml missing at /usr/lib/bootc/kargs.d/silverletter-thunderbolt.toml"
     fi
 fi
 
@@ -101,7 +101,7 @@ header "Config Files"
 FILES=(
     "/usr/lib/modprobe.d/thunderbolt-blacklist.conf"
     "/usr/lib/udev/rules.d/99-thunderbolt-pm.rules"
-    "/usr/lib/systemd/system/linuxbook-air-thunderbolt-powerdown.service"
+    "/usr/lib/systemd/system/silverletter-thunderbolt-powerdown.service"
     "/usr/lib/NetworkManager/conf.d/default-wifi-powersave-on.conf"
     "/usr/lib/systemd/system/powertop.service"
     "/usr/lib/systemd/system/aspm-tune.service"
@@ -111,11 +111,11 @@ FILES=(
 
 if [[ $TB_FEATURE_INSTALLED -eq 1 ]]; then
     FILES+=(
-        "/usr/libexec/linuxbook-air-thunderbolt-control"
-        "/usr/lib/systemd/system/linuxbook-air-thunderbolt-sleep.service"
-        "/usr/lib/systemd/system/linuxbook-air-thunderbolt-hotplug.service"
-        "/usr/lib/tmpfiles.d/linuxbook-air-thunderbolt.conf"
-        "/usr/share/gnome-shell/extensions/thunderbolt@linuxbook-air.local/extension.js"
+        "/usr/libexec/silverletter-thunderbolt-control"
+        "/usr/lib/systemd/system/silverletter-thunderbolt-sleep.service"
+        "/usr/lib/systemd/system/silverletter-thunderbolt-hotplug.service"
+        "/usr/lib/tmpfiles.d/silverletter-thunderbolt.conf"
+        "/usr/share/gnome-shell/extensions/thunderbolt@silverletter.local/extension.js"
     )
 fi
 
@@ -131,7 +131,7 @@ done
 header "Thunderbolt"
 
 TB_ENABLED=0
-if [[ -e /run/linuxbook-air/thunderbolt-enabled ]]; then
+if [[ -e /run/silverletter/thunderbolt-enabled ]]; then
     TB_ENABLED=1
     info "Automatic Thunderbolt hotplug session is active"
 fi
@@ -226,11 +226,11 @@ header "Systemd Services"
 SERVICES=(
     "powertop.service"
     "aspm-tune.service"
-    "linuxbook-air-thunderbolt-powerdown.service"
+    "silverletter-thunderbolt-powerdown.service"
     #"aspm-tune-resume.service"
 )
 if [[ $TB_FEATURE_INSTALLED -eq 1 ]]; then
-    SERVICES+=("linuxbook-air-thunderbolt-sleep.service")
+    SERVICES+=("silverletter-thunderbolt-sleep.service")
 fi
 for svc in "${SERVICES[@]}"; do
     enabled=$(systemctl is-enabled "$svc" 2>/dev/null)
@@ -239,8 +239,8 @@ for svc in "${SERVICES[@]}"; do
     if [[ "$enabled" == "enabled" ]]; then
         if [[ "$svc" == "powertop.service" ||
               "$svc" == "aspm-tune-resume.service" ||
-              "$svc" == "linuxbook-air-thunderbolt-powerdown.service" ||
-              "$svc" == "linuxbook-air-thunderbolt-sleep.service" ]]; then
+              "$svc" == "silverletter-thunderbolt-powerdown.service" ||
+              "$svc" == "silverletter-thunderbolt-sleep.service" ]]; then
             # Oneshot service — inactive after successful completion is normal.
             if [[ "$active" == "inactive" || "$active" == "active" ]]; then
                 pass "$svc — enabled (oneshot, currently $active)"

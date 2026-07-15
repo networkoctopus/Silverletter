@@ -5,8 +5,6 @@
 
 An immutable Fedora GNOME image for the Intel MacBook Air, built on [Universal Blue's `silverblue-main`](https://github.com/ublue-os/main/pkgs/container/silverblue-main). Currently tracking [Fedora 44](https://fedoraproject.org).
 
-An Apple Silicon edition is also built from the experimental [Fedora Asahi Remix Atomic Silverblue image](https://github.com/fedora-asahi-remix-atomic-desktops/images), sharing the desktop customisations without applying the Intel hardware workarounds.
-
 Instead of layering required packages onto stock Silverblue — which isn't the preferred convention with bootc/rpm-ostree - I created this instead. Along with serving as a playground on bootc - this became my daily driver since early 2026 - so I decided it was worth sharing.
 
 This little project started with the great [Universal Blue image-template](https://github.com/ublue-os/image-template). The aim was to create a reliable out-of-box Fedora Silverblue experience on my 11-year-old, 11-inch Mac: all drivers included, kept close to stock GNOME, with a particular focus on **maximising battery life**.
@@ -14,7 +12,7 @@ This little project started with the great [Universal Blue image-template](https
 At 50% display brightness with Wi-Fi enabled and no apps open, my machine draws around **4–4.5 W**, or roughly 10 hours of battery life (if you aren't doing anything else, of course :P).  Not that I use my machine this way, but for reference - with auto-brightness off and brightness at minimum, power usage drops to **3.3–3.5 W!**  Battery condition, open apps, Wi-Fi usage, peripherals, and exact hardware all contribute.
 
 > [!IMPORTANT]
-> **Thunderbolt is fully powered down by default to save power.** Connecting a Thunderbolt adapter automatically activates the controller; no menu action is required. The top-bar icon is red while an external adapter is present and white when disconnected or fully powered down. The controller is safely torn down before suspend and reclaimed automatically after resume if the adapter re-enumerates; otherwise reconnect the adapter. Disconnect Thunderbolt storage before suspending, because sleep is stopped if the hierarchy cannot be torn down safely.
+> **Thunderbolt is powered down when unused and activates automatically when a device is connected.** Hotplug and suspend/resume have been tested with an Apple Thunderbolt to Gigabit Ethernet Adapter; other Thunderbolt devices may work but are not guaranteed.
 
 Thunderbolt control events are recorded in the system journal. For troubleshooting, run `sudo journalctl -b -t linuxbook-air-thunderbolt`.
 
@@ -29,7 +27,7 @@ Thunderbolt control events are recorded in the system journal. For troubleshooti
 - [mbpfan](https://github.com/linux-on-mac/mbpfan) for MacBook fan control
 - [uupd](https://github.com/ublue-os/uupd) automatic image and Flatpak updates
 - GNOME extensions installed and enabled system-wide: [AppIndicator and KStatusNotifierItem Support](https://extensions.gnome.org/extension/615/appindicator-support/), [Xremap](https://extensions.gnome.org/extension/5060/xremap/), [Vitals](https://extensions.gnome.org/extension/1460/vitals/), [User Themes](https://extensions.gnome.org/extension/19/user-themes/), [Dash to Dock](https://extensions.gnome.org/extension/307/dash-to-dock/), and the [uupd Indicator](https://github.com/Vyachean/uupd-indicator) with restart-required notifications
-- A top-bar Thunderbolt control that keeps the port powered down by default and can temporarily enable it after administrator authentication; disabling it or entering sleep restores the maximum-power-saving state until the next restart
+- A top-bar Thunderbolt status indicator for the automatic power-saving and hotplug support
 - [WhiteSur GTK, Shell, and GDM styling](https://github.com/vinceliuice/WhiteSur-gtk-theme), selectable [WhiteSur icons](https://github.com/vinceliuice/WhiteSur-icon-theme), [WhiteSur cursors](https://github.com/vinceliuice/WhiteSur-cursors), and [MacTahoe icons and cursors](https://github.com/vinceliuice/MacTahoe-icon-theme), optional [MacTahoe Firefox CSS](https://github.com/vinceliuice/MacTahoe-gtk-theme), and MacTahoe day/night wallpapers that follow dark mode, with the day image also used by GDM
 
 
@@ -50,22 +48,6 @@ These closely related Intel MacBook Airs are reasonable candidates, but are **un
 
 Do not assume that other MacBooks or MacBook Pros are compatible. The trimmed initramfs omits drivers and storage features this specific machine does not need.
 
-### Apple Silicon edition
-
-The Apple Silicon image is published separately as:
-
-```text
-ghcr.io/networkoctopus/linuxbook-air-asahi:latest
-```
-
-It uses [`quay.io/fedora-asahi-remix-atomic-desktops/silverblue:44`](https://quay.io/repository/fedora-asahi-remix-atomic-desktops/silverblue) as its base. It includes the shared packages, GNOME extensions, themes, first-run setup, and automatic-update configuration from this project. The Intel kmods, power tuning, hardware fixes, and custom initramfs are intentionally omitted because the Asahi base provides the platform support.
-
-The upstream Atomic Asahi images describe themselves as unofficial and experimental. They are separate from the stable Fedora Asahi Remix distribution and are not endorsed by the Asahi developers.
-
-Automatic builds include both variants. The Intel build runs on an x86-64 runner using `Containerfile`; the Asahi build runs natively on an ARM64 runner using `Containerfile.asahi`.
-
-To publish a test build, open the **Build container image** workflow in GitHub Actions, choose **Run workflow**, select the `testing` branch and the Intel or Asahi variant, enable **Publish the built images to GHCR**, and leave the tag as `testing`. This publishes only the selected variant as either `linuxbook-air:testing` or `linuxbook-air-asahi:testing`, without replacing either `latest` image.
-
 ## Switch from another bootc system
 
 If you already run a bootc-managed system, inspect its current state first:
@@ -74,19 +56,10 @@ If you already run a bootc-managed system, inspect its current state first:
 sudo bootc status
 ```
 
-Then switch to the image for your hardware and reboot into the new deployment.
-
-For an Intel MacBook Air:
+Then switch to LinuxBook-Air and reboot into the new deployment:
 
 ```bash
 sudo bootc switch ghcr.io/networkoctopus/linuxbook-air:latest
-sudo systemctl reboot
-```
-
-For an Apple Silicon Mac already running a bootc-managed Fedora Asahi system:
-
-```bash
-sudo bootc switch ghcr.io/networkoctopus/linuxbook-air-asahi:latest
 sudo systemctl reboot
 ```
 
@@ -109,7 +82,7 @@ sudo systemctl reboot
 
 The installer ISO is built weekly. Open the [Build disk images workflow](https://github.com/networkoctopus/LinuxBook-Air/actions/workflows/build-iso.yml), select the newest successful scheduled run, and download the artifact from the **Artifacts** section at the bottom of the run page. Extract the archive to get the Anaconda ISO, then write it to a USB drive with your preferred image writer.
 
-This ISO is for Intel Macs only. Apple Silicon machines must first be installed using the Fedora Asahi Remix installation process; the Asahi bootc image can then be selected from an existing bootc-managed installation.
+This installer ISO is for Intel Macs only.
 
 Note: GitHub requires you to be signed in to download workflow artifacts.
 
@@ -156,10 +129,6 @@ sudo nmcli connection reload
 sudo systemctl restart NetworkManager
 ```
 
-### Rare failure to resume from suspend
-
-During early testing of temporary Thunderbolt enablement, the machine failed to return from suspend and required a hard reboot. The Thunderbolt control now treats enablement as a one-shot session and fully powers the controller down before sleep; it is not restored after resume. This feature remains hardware-specific and experimental, so save work before testing it with new peripherals.
-
 ## To do
 
 - Add an option to the Setup app to toggle all power tunings
@@ -167,3 +136,28 @@ During early testing of temporary Thunderbolt enablement, the machine failed to 
 ## Disclaimer
 
 Have fun, but there are no warranties. This personal project is shared in the hope that it is useful. It makes deliberate hardware trade-offs, has only been validated on the test machine, and may fail to boot or work correctly elsewhere. Keep backups and know how to select an earlier deployment before experimenting.
+
+## Apple Silicon edition — currently testing
+
+An Apple Silicon edition is being tested using the experimental [Fedora Asahi Remix Atomic Silverblue image](https://github.com/fedora-asahi-remix-atomic-desktops/images), sharing the desktop customisations without applying the Intel hardware workarounds.
+
+The image is published separately as:
+
+```text
+ghcr.io/networkoctopus/linuxbook-air-asahi:latest
+```
+
+It uses [`quay.io/fedora-asahi-remix-atomic-desktops/silverblue:44`](https://quay.io/repository/fedora-asahi-remix-atomic-desktops/silverblue) as its base. It includes the shared packages, GNOME extensions, themes, first-run setup, and automatic-update configuration from this project. The Intel kmods, power tuning, hardware fixes, and custom initramfs are intentionally omitted because the Asahi base provides the platform support.
+
+The upstream Atomic Asahi images describe themselves as unofficial and experimental. They are separate from the stable Fedora Asahi Remix distribution and are not endorsed by the Asahi developers.
+
+Apple Silicon machines must first be installed using the Fedora Asahi Remix installation process. From an existing bootc-managed Fedora Asahi system, switch to this image and reboot:
+
+```bash
+sudo bootc switch ghcr.io/networkoctopus/linuxbook-air-asahi:latest
+sudo systemctl reboot
+```
+
+After rebooting, verify the deployment with `sudo bootc status`.
+
+The Intel build runs on an x86-64 runner using `Containerfile`; the Asahi build runs natively on an ARM64 runner using `Containerfile.asahi`. To publish a test build, open the **Build container image** workflow in GitHub Actions, choose **Run workflow**, select the `testing` branch and the Asahi variant, enable **Publish the built images to GHCR**, and leave the tag as `testing`. This publishes `linuxbook-air-asahi:testing` without replacing the `latest` image.

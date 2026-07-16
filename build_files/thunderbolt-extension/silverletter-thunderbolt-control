@@ -1,59 +1,21 @@
 #!/bin/bash
-# Privileged backend for automatic Silverletter Thunderbolt power control.
+# Privileged backend for manual, boot-scoped Thunderbolt enablement.
 set -euo pipefail
 
 readonly STATE_DIR="/run/silverletter"
-readonly STATE_FILE="${STATE_DIR}/thunderbolt-enabled"
-readonly ESTABLISHED_FILE="${STATE_DIR}/thunderbolt-established"
-readonly STATE_EVENT_FILE="${STATE_DIR}/thunderbolt-state-changed"
-readonly DISCONNECT_REQUEST_FILE="${STATE_DIR}/thunderbolt-disconnect-request"
-readonly ACTIVITY_FILE="${STATE_DIR}/thunderbolt-hotplug-activity"
-readonly PREPARING_POWERDOWN_FILE="${STATE_DIR}/thunderbolt-preparing-powerdown"
-readonly POWERING_DOWN_FILE="${STATE_DIR}/thunderbolt-powering-down"
-readonly REPLUG_DURING_POWERDOWN_FILE="${STATE_DIR}/thunderbolt-replug-during-powerdown"
-readonly SUSPEND_FILE="${STATE_DIR}/thunderbolt-suspending"
-readonly LEGACY_RESTART_FILE="${STATE_DIR}/thunderbolt-restart-required"
 readonly CONTROL_LOCK="${STATE_DIR}/thunderbolt-control.lock"
-readonly TRANSITION_LOCK="${STATE_DIR}/thunderbolt-transition.lock"
 readonly POWERDOWN_LOCK="/run/tb-powerdown.lock"
 readonly POWERDOWN_HELPER="/usr/libexec/tb-powerdown.sh"
+readonly RUNTIME_RULE_DIR="/run/udev/rules.d"
+readonly POWERDOWN_MASK="${RUNTIME_RULE_DIR}/99-thunderbolt-pm.rules"
+readonly ENABLE_RULE="${RUNTIME_RULE_DIR}/98-silverletter-thunderbolt-enabled.rules"
 readonly LOG_TAG="silverletter-thunderbolt"
-readonly DEBUG_CONFIG="${STATE_DIR}/thunderbolt-debug.conf"
-
-if [[ -r "$DEBUG_CONFIG" ]]; then
-    # The guided debug tool creates this root-owned, boot-scoped file.
-    # shellcheck disable=SC1090
-    source "$DEBUG_CONFIG"
-fi
-
-readonly DEBUG_RUN_ID="${TB_DEBUG_RUN_ID:-none}"
-readonly ACTIVATION_WINDOW_SECONDS="${TB_ACTIVATION_WINDOW_SECONDS:-10}"
-readonly ACTIVATION_STABLE_SECONDS="${TB_ACTIVATION_STABLE_SECONDS:-3}"
-readonly DISCONNECT_SETTLE_SECONDS="${TB_DISCONNECT_SETTLE_SECONDS:-20}"
 
 log_event() {
     local priority="$1"
     shift
     logger -p "$priority" -t "$LOG_TAG" -- "$*" || true
 }
-
-validate_timing() {
-    local name value
-
-    for name in \
-        ACTIVATION_WINDOW_SECONDS \
-        ACTIVATION_STABLE_SECONDS \
-        DISCONNECT_SETTLE_SECONDS
-    do
-        value="${!name}"
-        if [[ ! "$value" =~ ^[0-9]+$ ]]; then
-            log_event daemon.err "action=config result=failed variable=$name value=$value"
-            exit 2
-        fi
-    done
-}
-
-validate_timing
 
 require_root() {
     if [[ $EUID -ne 0 ]]; then
@@ -62,595 +24,135 @@ require_root() {
     fi
 }
 
-notify_state_change() {
-    install -d -m 0755 "$STATE_DIR"
-    touch "$STATE_EVENT_FILE"
-}
-
-record_hotplug_activity() {
-    local action="$1"
-
-    install -d -m 0755 "$STATE_DIR"
-    printf '%s %s %s\n' "$action" "$(date +%s%N)" "$$" > "$ACTIVITY_FILE"
-}
-
-is_falcon_ridge_device() {
-    local path="$1"
-    local vendor device
-
-    [[ -r "${path}/vendor" && -r "${path}/device" ]] || return 1
-    read -r vendor < "${path}/vendor" || return 1
-    read -r device < "${path}/device" || return 1
-    [[ "$vendor" == "0x8086" && ( "$device" == "0x156a" || "$device" == "0x156b" ) ]]
-}
-
-bridge_fabric_present() {
-    local path
-
-    for path in /sys/bus/pci/devices/*; do
-        if is_falcon_ridge_device "$path" && [[ $(<"${path}/device") == "0x156b" ]]; then
-            return 0
-        fi
-    done
-    return 1
-}
-
 nhi_present() {
-    local path
-
-    for path in /sys/bus/pci/devices/*; do
-        if is_falcon_ridge_device "$path" && [[ $(<"${path}/device") == "0x156a" ]]; then
-            return 0
-        fi
-    done
-    return 1
-}
-
-# The built-in Falcon Ridge functions stop at 06:03.0. Anything below that
-# bridge is an external PCIe-tunnelled Thunderbolt device. Matching topology
-# instead of a vendor/device ID supports Ethernet, storage, docks, and other
-# adapters without maintaining an allow-list.
-external_device_present() {
-    local path real_path
-
-    for path in /sys/bus/pci/devices/*; do
-        [[ -e "$path" ]] || continue
-        real_path=$(readlink -f "$path" 2>/dev/null) || continue
-        if [[ "$real_path" == *"/0000:06:03.0/"* ]]; then
-            return 0
-        fi
-    done
-    return 1
-}
-
-thunderbolt_pci_addresses() {
-    local path real_path addresses=""
-
-    for path in /sys/bus/pci/devices/*; do
-        [[ -e "$path" ]] || continue
-        real_path=$(readlink -f "$path" 2>/dev/null) || continue
-        if [[ "$real_path" == *"/0000:05:00.0"* ]]; then
-            addresses+="${addresses:+,}$(basename "$path")"
-        fi
-    done
-    printf '%s' "${addresses:-none}"
-}
-
-log_snapshot() {
-    local stage="$1" marker="absent" established="absent" module="unloaded"
-    local nhi="absent" external="absent" bridge_fabric="absent"
-
-    [[ -e "$STATE_FILE" ]] && marker="present"
-    [[ -e "$ESTABLISHED_FILE" ]] && established="present"
-    lsmod | grep -q '^thunderbolt ' && module="loaded"
-    nhi_present && nhi="present"
-    external_device_present && external="present"
-    bridge_fabric_present && bridge_fabric="present"
-    log_event daemon.info \
-        "stage=$stage marker=$marker established=$established module=$module nhi=$nhi external=$external bridge_fabric=$bridge_fabric pci_devices=$(thunderbolt_pci_addresses)"
-}
-
-thunderbolt_storage_present() {
-    local block target
-
-    for block in /sys/class/block/*; do
-        [[ -e "$block" ]] || continue
-        target=$(readlink -f "$block" 2>/dev/null) || continue
-        if [[ "$target" == *"/0000:05:00.0/"* ]]; then
-            log_event daemon.warning \
-                "action=powerdown safety-check=failed block_device=$(basename "$block")"
-            return 0
-        fi
-    done
-    return 1
+    [[ -e /sys/bus/pci/devices/0000:07:00.0 ]]
 }
 
 show_status() {
-    if [[ -e "$STATE_FILE" ]] && nhi_present; then
+    if nhi_present; then
         printf 'enabled\n'
-    elif [[ -e "$STATE_FILE" ]]; then
-        printf 'ready\n'
-    elif [[ -e "$POWERING_DOWN_FILE" ]]; then
-        printf 'powering-down\n'
-    elif [[ -e "$REPLUG_DURING_POWERDOWN_FILE" ]]; then
-        printf 'powerdown-incomplete\n'
-    elif nhi_present; then
-        printf 'powerdown-incomplete\n'
     else
         printf 'disabled\n'
     fi
 }
 
-set_thunderbolt_tree_power_on() {
-    local path real_path failed=0
+write_runtime_rules() {
+    local rule_tmp
+
+    install -d -m 0755 "$STATE_DIR" "$RUNTIME_RULE_DIR"
+
+    # A same-named /dev/null link in /run overrides the image's boot
+    # power-down rule until /run is cleared by the next reboot.
+    ln -sfn /dev/null "$POWERDOWN_MASK"
+
+    rule_tmp="$(mktemp "${RUNTIME_RULE_DIR}/.98-silverletter-thunderbolt-enabled.rules.XXXXXX")"
+    printf '%s\n' \
+        '# Boot-scoped Silverletter Thunderbolt enablement.' \
+        'ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x156b", ATTR{power/control}="on"' \
+        > "$rule_tmp"
+    chmod 0644 "$rule_tmp"
+    mv -f "$rule_tmp" "$ENABLE_RULE"
+
+    udevadm control --reload-rules
+    log_event daemon.info "action=enable stage=runtime-rules-installed lifetime=until-reboot"
+}
+
+remove_runtime_rules() {
+    rm -f "$POWERDOWN_MASK" "$ENABLE_RULE"
+    udevadm control --reload-rules || true
+}
+
+set_present_bridges_on() {
+    local path vendor device
 
     for path in /sys/bus/pci/devices/*; do
-        [[ -e "$path" ]] || continue
-        real_path=$(readlink -f "$path" 2>/dev/null) || continue
-        if [[ "$real_path" == *"/0000:05:00.0"* && -w "${path}/power/control" ]]; then
-            if printf 'on\n' > "${path}/power/control"; then
-                log_event daemon.info \
-                    "action=activate stage=runtime-pm device=$(basename "$path") control=on"
-            else
-                log_event daemon.warning \
-                    "action=activate stage=runtime-pm-failed device=$(basename "$path") control=on"
-                failed=1
-            fi
+        [[ -r "$path/vendor" && -r "$path/device" ]] || continue
+        read -r vendor < "$path/vendor"
+        read -r device < "$path/device"
+        if [[ "$vendor" == "0x8086" && "$device" == "0x156b" &&
+              -w "$path/power/control" ]]; then
+            printf 'on\n' > "$path/power/control"
+            log_event daemon.info \
+                "action=enable stage=runtime-pm device=$(basename "$path") control=on"
         fi
     done
-
-    return "$failed"
 }
 
-# This deliberately does almost no work: it runs directly from udev so the
-# marker reaches an already-running power-down job before that job removes the
-# hierarchy. Slow work is delegated to the systemd hotplug service.
-claim_hotplug() {
-    require_root
-    install -d -m 0755 "$STATE_DIR"
-    record_hotplug_activity add
-    exec 7> "$TRANSITION_LOCK"
-    flock 7
+enable_thunderbolt() {
+    local attempt powerdown_lock_acquired=0
 
-    if [[ -e "$SUSPEND_FILE" ]]; then
-        log_event daemon.info "action=hotplug-claim result=skipped reason=suspend-in-progress"
-        return 0
-    fi
-
-    # Preparation is still cancellable: the destructive helper has not
-    # started. Removing this marker plus the activity update above makes the
-    # final pre-teardown check preserve this new connection.
-    if [[ -e "$PREPARING_POWERDOWN_FILE" ]]; then
-        rm -f "$PREPARING_POWERDOWN_FILE"
-        log_event daemon.notice \
-            "action=hotplug-claim result=success stage=powerdown-preparation-cancelled"
-    fi
-
-    # Do not start activation during the final NHI-removal phase. Serializing
-    # this transition avoids PCI enumeration racing a power-state change.
-    if [[ -e "$POWERING_DOWN_FILE" ]]; then
-        : > "$REPLUG_DURING_POWERDOWN_FILE"
-        chmod 0644 "$REPLUG_DURING_POWERDOWN_FILE"
-        log_event daemon.warning "action=hotplug-claim result=skipped reason=powerdown-in-progress replug_required=yes"
-        notify_state_change
-        return 0
-    fi
-
-    if [[ -e "$REPLUG_DURING_POWERDOWN_FILE" ]]; then
-        log_event daemon.err "action=hotplug-claim result=skipped reason=unsafe-replug-recorded reboot_required=yes"
-        notify_state_change
-        return 0
-    fi
-
-    rm -f "$LEGACY_RESTART_FILE"
-    if [[ ! -e "$STATE_FILE" ]]; then
-        : > "$STATE_FILE"
-        chmod 0644 "$STATE_FILE"
-        log_event daemon.notice "action=hotplug-claim result=success marker=created"
-    else
-        log_event daemon.info "action=hotplug-claim result=success marker=already-present"
-    fi
-    notify_state_change
-}
-
-# Runs directly from udev. Record the event and let the systemd path unit do
-# the delayed check outside the udev worker after the PCI removal cascade.
-request_hotplug_release() {
-    require_root
-    install -d -m 0755 "$STATE_DIR"
-    record_hotplug_activity remove
-    printf '%s %s\n' "$(date +%s%N)" "$$" > "$DISCONNECT_REQUEST_FILE"
-    notify_state_change
-}
-
-schedule_pending_expiry() {
-    printf '%s %s pending\n' "$(date +%s%N)" "$$" > "$DISCONNECT_REQUEST_FILE"
-    log_event daemon.info \
-        "action=activate stage=pending-expiry-scheduled quiet_seconds=$DISCONNECT_SETTLE_SECONDS"
-}
-
-wait_for_disconnect_quiet() {
-    local activity="" current="" quiet_since=$SECONDS
-
-    [[ -r "$ACTIVITY_FILE" ]] && activity="$(< "$ACTIVITY_FILE")"
-    log_event daemon.info \
-        "action=disconnect stage=waiting-for-quiet debug_run=$DEBUG_RUN_ID seconds=$DISCONNECT_SETTLE_SECONDS"
-
-    while (( SECONDS - quiet_since < DISCONNECT_SETTLE_SECONDS )); do
-        if external_device_present; then
-            log_event daemon.info "action=disconnect result=skipped reason=external-device-present"
-            return 1
+    rollback_enable() {
+        local status=$?
+        trap - ERR
+        log_event daemon.err "action=enable result=failed exit_status=$status"
+        remove_runtime_rules
+        if (( powerdown_lock_acquired )); then
+            flock -u 8 || true
         fi
+        modprobe -r thunderbolt 2>/dev/null || true
+        "$POWERDOWN_HELPER" || true
+        exit "$status"
+    }
+    trap rollback_enable ERR
 
-        current=""
-        [[ -r "$ACTIVITY_FILE" ]] && current="$(< "$ACTIVITY_FILE")"
-        if [[ "$current" != "$activity" ]]; then
-            activity="$current"
-            quiet_since=$SECONDS
-            log_event daemon.info "action=disconnect stage=quiet-window-restarted reason=hotplug-activity"
-        fi
-        sleep 1
-    done
+    log_event daemon.notice "action=enable stage=start lifetime=until-reboot"
+    write_runtime_rules
 
-    return 0
-}
-
-release_hotplug() {
-    local activity_before="" activity_after="" session_state="established"
-
-    if [[ -e "$SUSPEND_FILE" ]]; then
-        log_event daemon.info "action=disconnect result=skipped reason=suspend-in-progress"
-        return 0
-    fi
-
-    if [[ -e "$REPLUG_DURING_POWERDOWN_FILE" ]]; then
-        log_event daemon.err "action=disconnect result=refused reason=unsafe-replug-recorded reboot_required=yes"
-        notify_state_change
+    # Let every udev job that was queued under the image rule finish. The
+    # power-down helper is deliberately not cancellable, so manual activation
+    # always starts from the same fully removed PCI state.
+    if ! udevadm settle --timeout=30; then
+        printf 'Timed out waiting for the boot Thunderbolt power-down to finish.\n' >&2
         return 1
     fi
+    log_event daemon.info "action=enable stage=boot-powerdown-settled"
 
-    # A first-generation endpoint can briefly disappear while Falcon Ridge is
-    # still training the physical link. Pending sessions therefore use the
-    # same activity-based quiet window as established disconnects. They are
-    # not preserved indefinitely: a false or abandoned claim must eventually
-    # return to the maximum-power-saving state.
-    if [[ ! -e "$ESTABLISHED_FILE" ]]; then
-        session_state="pending"
-        log_event daemon.info \
-            "action=disconnect stage=pending-session-expiry-check automatic_powerdown=yes"
-    fi
-
-    # Coalesce the external remove cascade and restart the timer for every
-    # subsequent add/remove event. This keeps teardown away from an unstable
-    # link and from immediate reconnects.
-    if ! wait_for_disconnect_quiet; then
-        notify_state_change
-        return 0
-    fi
-
-    if external_device_present; then
-        log_event daemon.info "action=disconnect result=skipped reason=external-device-present-after-quiet"
-        notify_state_change
-        return 0
-    fi
-
-    if [[ ! -e "$STATE_FILE" ]]; then
-        if nhi_present; then
-            log_event daemon.warning "action=disconnect stage=retry-incomplete-powerdown"
-        else
-            log_event daemon.info "action=disconnect result=skipped reason=already-powered-down"
-            notify_state_change
-            return 0
-        fi
-    fi
-
-    if thunderbolt_storage_present; then
-        log_event daemon.err "action=disconnect result=refused reason=thunderbolt-storage-present"
-        notify_state_change
-        return 1
-    fi
-
-    # Phase one is explicitly cancellable. Give udev a short window to record
-    # a connection that arrived at the end of the quiet period, then verify
-    # both the topology and the activity generation before committing to PCI
-    # removal.
-    [[ -r "$ACTIVITY_FILE" ]] && activity_before="$(< "$ACTIVITY_FILE")"
-    : > "$PREPARING_POWERDOWN_FILE"
-    chmod 0644 "$PREPARING_POWERDOWN_FILE"
-    trap 'rm -f "$PREPARING_POWERDOWN_FILE" "$POWERING_DOWN_FILE"; notify_state_change' EXIT
-    log_event daemon.notice \
-        "action=disconnect stage=powerdown-preparing session=$session_state"
-    sleep 1
-
-    # Serialize the final decision with the lightweight udev claim path. This
-    # prevents a claim from being created in the gap between the last activity
-    # check and the transition to the non-cancellable removal phase.
-    exec 7> "$TRANSITION_LOCK"
-    flock 7
-    [[ -r "$ACTIVITY_FILE" ]] && activity_after="$(< "$ACTIVITY_FILE")"
-    if [[ ! -e "$PREPARING_POWERDOWN_FILE" ||
-          "$activity_after" != "$activity_before" ]] ||
-        external_device_present; then
-        rm -f "$PREPARING_POWERDOWN_FILE"
-        flock -u 7
-        log_event daemon.info \
-            "action=disconnect result=cancelled reason=activity-during-powerdown-preparation"
-        notify_state_change
-        return 0
-    fi
-
-    # Phase two starts immediately before the claim is released. From here a
-    # replug is unsafe and is recorded separately so activation cannot race
-    # NHI removal.
-    : > "$POWERING_DOWN_FILE"
-    chmod 0644 "$POWERING_DOWN_FILE"
-    rm -f "$PREPARING_POWERDOWN_FILE"
-    rm -f "$STATE_FILE" "$ESTABLISHED_FILE" "$LEGACY_RESTART_FILE"
-    flock -u 7
-    notify_state_change
-    log_event daemon.notice \
-        "action=disconnect stage=claim-released session=$session_state"
-
-    if ! "$POWERDOWN_HELPER"; then
-        log_event daemon.err "action=disconnect result=failed reason=powerdown-helper"
-        notify_state_change
-        return 1
-    fi
-
-    if [[ -e "$REPLUG_DURING_POWERDOWN_FILE" ]] || external_device_present; then
-        log_event daemon.err "action=disconnect result=aborted reason=device-reconnected-during-powerdown reboot_required=yes"
-        notify_state_change
-        return 1
-    fi
-
-    if nhi_present; then
-        log_event daemon.err "action=disconnect result=failed reason=nhi-still-present"
-        log_snapshot "disconnect-incomplete"
-        notify_state_change
-        return 1
-    fi
-
-    if lsmod | grep -q '^thunderbolt_net '; then
-        if modprobe -r thunderbolt_net; then
-            log_event daemon.info "action=disconnect stage=module-removed module=thunderbolt_net"
-        else
-            log_event daemon.warning "action=disconnect stage=module-remove-failed module=thunderbolt_net"
-        fi
-    fi
-    if lsmod | grep -q '^thunderbolt '; then
-        if modprobe -r thunderbolt; then
-            log_event daemon.info "action=disconnect stage=module-removed module=thunderbolt"
-        else
-            log_event daemon.warning "action=disconnect stage=module-remove-failed module=thunderbolt"
-        fi
-    fi
-
-    notify_state_change
-    log_snapshot "disconnect-after"
-    log_event daemon.notice "action=disconnect result=success"
-}
-
-wait_for_external_device() {
-    local deadline stable_since=-1 present=0
-
-    if (( ACTIVATION_WINDOW_SECONDS == 0 && ACTIVATION_STABLE_SECONDS == 0 )); then
-        external_device_present
-        return
-    fi
-
-    deadline=$((SECONDS + ACTIVATION_WINDOW_SECONDS))
-    log_event daemon.info \
-        "action=activate stage=discovery-window debug_run=$DEBUG_RUN_ID window_seconds=$ACTIVATION_WINDOW_SECONDS stable_seconds=$ACTIVATION_STABLE_SECONDS"
-
-    while (( SECONDS <= deadline )); do
-        if external_device_present; then
-            if (( present == 0 )); then
-                present=1
-                stable_since=$SECONDS
-                log_event daemon.info "action=activate stage=external-device-observed"
-            fi
-            if (( SECONDS - stable_since >= ACTIVATION_STABLE_SECONDS )); then
-                log_event daemon.info "action=activate stage=external-device-stable"
-                return 0
-            fi
-        elif (( present == 1 )); then
-            present=0
-            stable_since=-1
-            log_event daemon.info "action=activate stage=external-device-lost-during-discovery"
-        fi
-        sleep 1
-    done
-
-    return 1
-}
-
-activate_hotplug() {
-    local failed=0
-
-    if [[ -e "$SUSPEND_FILE" || ! -e "$STATE_FILE" ]]; then
-        log_event daemon.info "action=activate result=skipped reason=not-claimed"
-        return 0
-    fi
-
-    log_event daemon.notice "action=activate stage=start"
-    log_event daemon.info \
-        "action=activate stage=timing debug_run=$DEBUG_RUN_ID window_seconds=$ACTIVATION_WINDOW_SECONDS stable_seconds=$ACTIVATION_STABLE_SECONDS"
+    # Serialize with the helper as a final guard before PCI rescan.
     exec 8> "$POWERDOWN_LOCK"
     flock 8
-    log_event daemon.info "action=activate stage=powerdown-lock-acquired"
+    powerdown_lock_acquired=1
+    log_event daemon.info "action=enable stage=powerdown-lock-acquired"
 
-    if [[ -e "$POWERING_DOWN_FILE" || -e "$REPLUG_DURING_POWERDOWN_FILE" ]]; then
-        flock -u 8
-        log_event daemon.err "action=activate result=refused reason=unsafe-powerdown-state reboot_required=yes"
-        notify_state_change
+    modprobe thunderbolt
+    log_event daemon.info "action=enable stage=module-loaded module=thunderbolt"
+
+    printf '1\n' > /sys/bus/pci/rescan
+    log_event daemon.info "action=enable stage=pci-rescan"
+    udevadm settle --timeout=10 || true
+
+    for attempt in {1..20}; do
+        if nhi_present; then
+            break
+        fi
+        sleep 0.5
+    done
+
+    if ! nhi_present; then
+        printf 'The Thunderbolt controller did not appear after the PCI rescan.\n' >&2
         return 1
     fi
 
-    if [[ ! -e "$STATE_FILE" ]]; then
-        flock -u 8
-        log_event daemon.info "action=activate result=skipped reason=claim-released-before-lock"
-        return 0
-    fi
-
-    # Once the physical claim has cancelled power-down, keep the complete
-    # enumerated hierarchy awake for the duration of this session.
-    if ! set_thunderbolt_tree_power_on; then
-        log_event daemon.err "action=activate result=failed reason=runtime-pm"
-        failed=1
-    fi
-    if ! modprobe thunderbolt; then
-        log_event daemon.err "action=activate result=failed reason=module-load"
-        failed=1
-    fi
-
-    if (( failed )); then
-        flock -u 8
-        log_event daemon.err \
-            "action=activate result=failed pending_session=preserved automatic_powerdown=after-quiet"
-        notify_state_change
-        schedule_pending_expiry
-        return 1
-    fi
-
+    set_present_bridges_on
     flock -u 8
-
-    if wait_for_external_device; then
-        : > "$ESTABLISHED_FILE"
-        chmod 0644 "$ESTABLISHED_FILE"
-        notify_state_change
-        log_snapshot "activate-after"
-        log_event daemon.notice "action=activate result=success state=active lifetime=while-device-present"
-        return 0
-    fi
-
-    notify_state_change
-    log_snapshot "activate-pending"
+    powerdown_lock_acquired=0
+    trap - ERR
     log_event daemon.notice \
-        "action=activate result=success state=pending reason=external-device-not-stable automatic_powerdown=after-quiet"
-    schedule_pending_expiry
-}
-
-power_down_thunderbolt() {
-    local reason="$1"
-
-    log_event daemon.notice "action=powerdown-request reason=$reason stage=start"
-    log_snapshot "powerdown-request-before"
-
-    if [[ -e "$REPLUG_DURING_POWERDOWN_FILE" ]]; then
-        log_event daemon.err \
-            "action=powerdown-request reason=$reason result=refused reason_detail=unsafe-replug-recorded"
-        return 1
-    fi
-
-    if thunderbolt_storage_present; then
-        log_event daemon.err "action=powerdown-request reason=$reason result=refused reason_detail=thunderbolt-storage-present"
-        printf 'Disconnect all Thunderbolt storage devices before suspending.\n' >&2
-        return 1
-    fi
-
-    rm -f "$STATE_FILE" "$ESTABLISHED_FILE" "$LEGACY_RESTART_FILE"
-    notify_state_change
-    if ! "$POWERDOWN_HELPER"; then
-        log_event daemon.err \
-            "action=powerdown-request reason=$reason result=failed reason_detail=powerdown-helper"
-        log_snapshot "powerdown-request-helper-failed"
-        return 1
-    fi
-
-    if nhi_present; then
-        log_event daemon.err "action=powerdown-request reason=$reason result=failed reason_detail=nhi-still-present"
-        log_snapshot "powerdown-request-incomplete"
-        return 1
-    fi
-
-    # Keep the Thunderbolt driver bound while sysfs runtime-PM and PCI removal
-    # run. Unloading it first can leave the NHI present but inaccessible,
-    # causing the preparatory writes to fail and preventing teardown.
-    if lsmod | grep -q '^thunderbolt_net '; then
-        if modprobe -r thunderbolt_net; then
-            log_event daemon.info "action=powerdown-request stage=module-removed module=thunderbolt_net"
-        else
-            log_event daemon.warning "action=powerdown-request stage=module-remove-failed module=thunderbolt_net"
-        fi
-    fi
-    if lsmod | grep -q '^thunderbolt '; then
-        if modprobe -r thunderbolt; then
-            log_event daemon.info "action=powerdown-request stage=module-removed module=thunderbolt"
-        else
-            # The NHI is already gone, so a module unload failure must be
-            # visible but must not turn a successful hardware teardown into a
-            # failed suspend.
-            log_event daemon.warning "action=powerdown-request stage=module-remove-failed module=thunderbolt"
-        fi
-    fi
-
-    notify_state_change
-    log_snapshot "powerdown-request-after"
-    log_event daemon.notice "action=powerdown-request reason=$reason result=success"
-}
-
-prepare_suspend() {
-    : > "$SUSPEND_FILE"
-    chmod 0644 "$SUSPEND_FILE"
-    notify_state_change
-    log_event daemon.notice "action=prepare-suspend stage=start"
-
-    if [[ -e "$STATE_FILE" ]] || lsmod | grep -q '^thunderbolt ' || nhi_present; then
-        if ! power_down_thunderbolt suspend; then
-            rm -f "$SUSPEND_FILE"
-            notify_state_change
-            log_event daemon.err "action=prepare-suspend result=failed"
-            return 1
-        fi
-    else
-        log_event daemon.info "action=prepare-suspend result=success reason=already-powered-down"
-    fi
-}
-
-resume_from_suspend() {
-    rm -f "$SUSPEND_FILE" "$ESTABLISHED_FILE"
-    notify_state_change
-    log_event daemon.notice "action=resume stage=start"
-
-    # A connected adapter may have re-enumerated during resume while claims
-    # were suppressed. Reclaim it here; otherwise remain at maximum saving and
-    # wait for the next physical plug event.
-    if external_device_present; then
-        : > "$STATE_FILE"
-        chmod 0644 "$STATE_FILE"
-        notify_state_change
-        log_event daemon.notice "action=resume stage=external-device-present result=reclaiming"
-        activate_hotplug
-    else
-        log_event daemon.notice "action=resume result=powered-down wait_for_hotplug=yes"
-    fi
+        "action=enable result=success controller=0000:07:00.0 lifetime=until-reboot"
 }
 
 case "${1:-}" in
     status)
         show_status
         ;;
-    hotplug-claim)
-        claim_hotplug
-        ;;
-    hotplug-release-request)
-        request_hotplug_release
-        ;;
-    hotplug-activate|hotplug-release|prepare-suspend|resume)
+    enable)
         require_root
         install -d -m 0755 "$STATE_DIR"
         exec 9> "$CONTROL_LOCK"
         flock 9
-        log_event daemon.info "action=$1 stage=control-lock-acquired uid=$EUID"
-        case "$1" in
-            hotplug-activate) activate_hotplug ;;
-            hotplug-release) release_hotplug ;;
-            prepare-suspend) prepare_suspend ;;
-            resume) resume_from_suspend ;;
-        esac
+        enable_thunderbolt
         ;;
     *)
-        printf 'Usage: %s {status|hotplug-claim|hotplug-release-request|hotplug-activate|hotplug-release|prepare-suspend|resume}\n' "$0" >&2
+        printf 'Usage: %s {status|enable}\n' "$0" >&2
         exit 2
         ;;
 esac

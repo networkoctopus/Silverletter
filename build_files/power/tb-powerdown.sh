@@ -1,13 +1,7 @@
 #!/bin/sh
 
-STATEFILE=/run/silverletter/thunderbolt-enabled
 LOCKFILE=/run/tb-powerdown.lock
 LOG_TAG=silverletter-thunderbolt
-
-if [ -e "$STATEFILE" ]; then
-    logger -t "$LOG_TAG" "action=powerdown result=skipped reason=hotplug-session-active"
-    exit 0
-fi
 
 exec 9> "$LOCKFILE"
 if ! flock -n 9; then
@@ -18,19 +12,9 @@ fi
 logger -t "$LOG_TAG" "action=powerdown stage=start"
 sleep 2
 
-# A physical hotplug may have claimed the hierarchy while this job waited.
-if [ -e "$STATEFILE" ]; then
-    logger -t "$LOG_TAG" "action=powerdown result=cancelled reason=hotplug-claim-during-initial-delay"
-    exit 0
-fi
-
 TB_DEVS="07:00.0 06:06.0 06:05.0 06:04.0 06:03.0 06:00.0 05:00.0"
 
 for dev in $TB_DEVS; do
-    if [ -e "$STATEFILE" ]; then
-        logger -t "$LOG_TAG" "action=powerdown result=cancelled reason=hotplug-claim-during-runtime-pm"
-        exit 0
-    fi
     path="/sys/bus/pci/devices/0000:$dev"
     if [ -e "$path" ]; then
         echo 0 > "$path/power/autosuspend_delay_ms"
@@ -42,17 +26,7 @@ done
 
 sleep 1
 
-# This is the final cancellation point before PCI removal starts.
-if [ -e "$STATEFILE" ]; then
-    logger -t "$LOG_TAG" "action=powerdown result=cancelled reason=hotplug-claim-during-runtime-pm-delay"
-    exit 0
-fi
-
 for dev in $TB_DEVS; do
-    if [ -e "$STATEFILE" ]; then
-        logger -t "$LOG_TAG" "action=powerdown result=cancelled reason=hotplug-claim-before-pci-remove"
-        exit 0
-    fi
     path="/sys/bus/pci/devices/0000:$dev"
     if [ -e "$path/remove" ]; then
         echo 1 > "$path/remove"
@@ -60,17 +34,4 @@ for dev in $TB_DEVS; do
     fi
 done
 
-remaining=""
-for dev in $TB_DEVS; do
-    if [ -e "/sys/bus/pci/devices/0000:$dev" ]; then
-        remaining="${remaining}${remaining:+,}0000:$dev"
-    fi
-done
-
-if [ -n "$remaining" ]; then
-    logger -p daemon.err -t "$LOG_TAG" \
-        "action=powerdown result=failed remaining_devices=$remaining"
-    exit 1
-fi
-
-logger -t "$LOG_TAG" "action=powerdown result=success remaining_devices=none"
+logger -t "$LOG_TAG" "action=powerdown result=success"

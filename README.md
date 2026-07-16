@@ -44,9 +44,7 @@ These closely related Intel-based MacBook Air computers are reasonable candidate
 | `MacBookAir5,1` | 11-inch, Mid 2012 | Earlier related hardware; least certain |
 | `MacBookAir5,2` | 13-inch, Mid 2012 | Earlier related chassis; least certain |
 
-> **Thunderbolt is powered down when unused and activates automatically when a device is connected.** Hotplug and suspend/resume have been tested with an Apple Thunderbolt to Gigabit Ethernet Adapter; other Thunderbolt devices may work but are not guaranteed.
-
-Thunderbolt control events are recorded in the system journal. For troubleshooting, run `sudo journalctl -b -t silverletter-thunderbolt`; guided observational tests are available with `sudo silverletter-thunderbolt-debug --preset=1` and write a single log under `/var/log/silverletter/thunderbolt-debug/`.
+> **Thunderbolt is powered down by default; the GNOME indicator can enable experimental support until the next reboot.** Only the Apple Thunderbolt to Gigabit Ethernet Adapter has been tested, and connected devices may cause system instability or a kernel panic.
 
 ## Switch from another bootc system
 

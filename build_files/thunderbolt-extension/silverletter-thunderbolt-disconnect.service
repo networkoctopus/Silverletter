@@ -1,8 +1,0 @@
-[Unit]
-Description=Power down Thunderbolt after the external device disconnects
-
-[Service]
-Type=oneshot
-ExecStart=/usr/libexec/silverletter-thunderbolt-control hotplug-release
-# Includes the disconnect quiet window plus a bounded NHI-only teardown.
-TimeoutStartSec=90

@@ -1,9 +1,0 @@
-[Unit]
-Description=Watch for Thunderbolt PCI disconnect requests
-
-[Path]
-PathChanged=/run/silverletter/thunderbolt-disconnect-request
-Unit=silverletter-thunderbolt-disconnect.service
-
-[Install]
-WantedBy=multi-user.target

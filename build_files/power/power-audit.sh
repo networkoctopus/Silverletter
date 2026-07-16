@@ -102,7 +102,6 @@ FILES=(
     "/usr/lib/modprobe.d/thunderbolt-blacklist.conf"
     "/usr/lib/udev/rules.d/99-thunderbolt-pm.rules"
     "/usr/libexec/tb-powerdown.sh"
-    "/usr/lib/systemd/system/silverletter-thunderbolt-powerdown.service"
     "/usr/lib/NetworkManager/conf.d/default-wifi-powersave-on.conf"
     "/usr/lib/systemd/system/powertop.service"
     "/usr/lib/systemd/system/aspm-tune.service"
@@ -113,10 +112,7 @@ FILES=(
 if [[ $TB_FEATURE_INSTALLED -eq 1 ]]; then
     FILES+=(
         "/usr/libexec/silverletter-thunderbolt-control"
-        "/usr/bin/silverletter-thunderbolt-debug"
-        "/usr/lib/systemd/system/silverletter-thunderbolt-sleep.service"
-        "/usr/lib/systemd/system/silverletter-thunderbolt-hotplug.service"
-        "/usr/lib/tmpfiles.d/silverletter-thunderbolt.conf"
+        "/usr/share/polkit-1/actions/io.github.networkoctopus.silverletter.thunderbolt.policy"
         "/usr/share/gnome-shell/extensions/thunderbolt@silverletter.local/extension.js"
     )
 fi
@@ -133,20 +129,22 @@ done
 header "Thunderbolt"
 
 TB_ENABLED=0
-if [[ -e /run/silverletter/thunderbolt-enabled ]]; then
+if [[ -e /sys/bus/pci/devices/0000:07:00.0 ]]; then
     TB_ENABLED=1
-    info "Automatic Thunderbolt hotplug session is active"
+    warn "Experimental Thunderbolt session is active until reboot"
+else
+    pass "Thunderbolt is in the default powered-down state"
 fi
 
 if lsmod | grep -q '^thunderbolt '; then
     if [[ $TB_ENABLED -eq 1 ]]; then
-        pass "thunderbolt module is loaded for the hotplug session"
+        pass "thunderbolt module is loaded for the temporary session"
     else
-        fail "thunderbolt module is LOADED without the hotplug session marker"
+        fail "thunderbolt module is LOADED while the controller is powered down"
     fi
 else
     if [[ $TB_ENABLED -eq 1 ]]; then
-        fail "hotplug session marker exists but thunderbolt module is not loaded"
+        fail "07:00.0 is present but the thunderbolt module is not loaded"
     else
         pass "thunderbolt module not loaded"
     fi
@@ -160,7 +158,8 @@ else
     fail "thunderbolt-blacklist.conf missing or empty"
 fi
 
-# The complete hierarchy is absent while idle and forced on while claimed.
+# The complete hierarchy should be absent while idle. During a temporary
+# session the 156b bridges are held on by the boot-scoped udev rule.
 header "Thunderbolt PCIe Runtime PM"
 TB_DEVS=(
     "0000:05:00.0"
@@ -175,16 +174,19 @@ for dev in "${TB_DEVS[@]}"; do
     if [[ -e "/sys/bus/pci/devices/$dev" ]]; then
         ctrl=$(cat /sys/bus/pci/devices/$dev/power/control 2>/dev/null)
         status=$(cat /sys/bus/pci/devices/$dev/power/runtime_status 2>/dev/null)
-        if [[ $TB_ENABLED -eq 1 && "$ctrl" == "on" ]]; then
-            pass "$dev — control=$ctrl status=$status (hotplug session active)"
+        device_id=$(cat /sys/bus/pci/devices/$dev/device 2>/dev/null)
+        if [[ $TB_ENABLED -eq 1 && "$device_id" == "0x156b" && "$ctrl" == "on" ]]; then
+            pass "$dev — control=$ctrl status=$status (temporary session)"
+        elif [[ $TB_ENABLED -eq 1 && "$device_id" == "0x156b" ]]; then
+            fail "$dev — control=$ctrl (expected on for 156b bridge) status=$status"
         elif [[ $TB_ENABLED -eq 1 ]]; then
-            fail "$dev — control=$ctrl (expected on during hotplug session) status=$status"
+            pass "$dev — control=$ctrl status=$status (temporary session)"
         else
-            fail "$dev — still present without a hotplug session control=$ctrl status=$status"
+            fail "$dev — still present in the default powered-down state control=$ctrl status=$status"
         fi
     else
         if [[ $TB_ENABLED -eq 1 ]]; then
-            fail "$dev — missing while hotplug session is active"
+            warn "$dev — not enumerated during the temporary session"
         else
             pass "$dev — not present on PCIe bus"
         fi
@@ -224,21 +226,15 @@ header "Systemd Services"
 SERVICES=(
     "powertop.service"
     "aspm-tune.service"
-    "silverletter-thunderbolt-powerdown.service"
     #"aspm-tune-resume.service"
 )
-if [[ $TB_FEATURE_INSTALLED -eq 1 ]]; then
-    SERVICES+=("silverletter-thunderbolt-sleep.service")
-fi
 for svc in "${SERVICES[@]}"; do
     enabled=$(systemctl is-enabled "$svc" 2>/dev/null)
     active=$(systemctl is-active "$svc" 2>/dev/null)
 
     if [[ "$enabled" == "enabled" ]]; then
         if [[ "$svc" == "powertop.service" ||
-              "$svc" == "aspm-tune-resume.service" ||
-              "$svc" == "silverletter-thunderbolt-powerdown.service" ||
-              "$svc" == "silverletter-thunderbolt-sleep.service" ]]; then
+              "$svc" == "aspm-tune-resume.service" ]]; then
             # Oneshot service — inactive after successful completion is normal.
             if [[ "$active" == "inactive" || "$active" == "active" ]]; then
                 pass "$svc — enabled (oneshot, currently $active)"

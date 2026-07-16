@@ -1,32 +1,10 @@
 # /usr/lib/udev/rules.d/99-thunderbolt-pm.rules
 
 # Thunderbolt 2 Falcon Ridge power management (MacBook Air 7,1)
-# Internal Falcon Ridge functions are normally torn down for maximum power
-# saving. An external PCI function below port 06:03.0 claims the hierarchy
-# before a pending power-down can remove it.
+# Matches all TB2 bridge (156b) and NHI (156a) devices. The helper is locked
+# so only one instance runs despite multiple add events.
 ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x156b", \
-    TEST!="/run/silverletter/thunderbolt-enabled", \
-    TAG+="systemd", ENV{SYSTEMD_WANTS}+="silverletter-thunderbolt-powerdown.service"
+    RUN+="/usr/libexec/tb-powerdown.sh"
 
 ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x156a", \
-    TEST!="/run/silverletter/thunderbolt-enabled", \
-    TAG+="systemd", ENV{SYSTEMD_WANTS}+="silverletter-thunderbolt-powerdown.service"
-
-# KERNELS matches a parent, so this excludes the built-in 06:03.0 bridge and
-# matches external PCIe-tunnelled bridges and endpoints below it. The direct
-# helper only creates the claim; systemd performs the slower activation work.
-ACTION=="add", SUBSYSTEM=="pci", KERNELS=="0000:06:03.0", \
-    RUN+="/usr/libexec/silverletter-thunderbolt-control hotplug-claim", \
-    TAG+="systemd", ENV{SYSTEMD_WANTS}+="silverletter-thunderbolt-hotplug.service"
-
-# Keep the claimed hierarchy awake. There is deliberately no remove-event
-# teardown: disconnecting an adapter leaves the session available until
-# suspend or reboot, avoiding destructive PCI removal during normal hotplug.
-ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x156b", \
-    TEST=="/run/silverletter/thunderbolt-enabled", ATTR{power/control}="on"
-
-ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x156a", \
-    TEST=="/run/silverletter/thunderbolt-enabled", ATTR{power/control}="on"
-
-ACTION=="add", SUBSYSTEM=="pci", KERNELS=="0000:06:03.0", \
-    TEST=="/run/silverletter/thunderbolt-enabled", ATTR{power/control}="on"
+    RUN+="/usr/libexec/tb-powerdown.sh"

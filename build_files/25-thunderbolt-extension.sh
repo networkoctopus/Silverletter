@@ -5,23 +5,33 @@ set -ouex pipefail
 install -Dm644 /ctx/thunderbolt-extension/silverletter-thunderbolt.toml \
     /usr/lib/bootc/kargs.d/silverletter-thunderbolt.toml
 
-### ── Automatic hotplug control and suspend safety ──
+### ── Manual, boot-scoped Thunderbolt enablement ──
 install -Dm755 /ctx/thunderbolt-extension/silverletter-thunderbolt-control \
     /usr/libexec/silverletter-thunderbolt-control
-install -Dm755 /ctx/thunderbolt-extension/silverletter-thunderbolt-debug \
-    /usr/bin/silverletter-thunderbolt-debug
 
-install -Dm644 /ctx/thunderbolt-extension/silverletter-thunderbolt-sleep.service \
-    /usr/lib/systemd/system/silverletter-thunderbolt-sleep.service
-install -Dm644 /ctx/thunderbolt-extension/silverletter-thunderbolt-hotplug.service \
-    /usr/lib/systemd/system/silverletter-thunderbolt-hotplug.service
-install -Dm644 /ctx/thunderbolt-extension/silverletter-thunderbolt.conf \
-    /usr/lib/tmpfiles.d/silverletter-thunderbolt.conf
-# Recreate the enablement links because this unit intentionally changed from
-# RequiredBy= to WantedBy=. A plain enable can leave the old .requires link in
-# an incrementally built image.
-systemctl reenable silverletter-thunderbolt-sleep.service
-systemctl disable silverletter-thunderbolt-disconnect.path 2>/dev/null || true
+install -Dm644 \
+    /ctx/thunderbolt-extension/io.github.networkoctopus.silverletter.thunderbolt.policy \
+    /usr/share/polkit-1/actions/io.github.networkoctopus.silverletter.thunderbolt.policy
+
+# Do not carry any event-driven, disconnect, debug, or sleep machinery from
+# earlier experimental revisions.
+systemctl disable \
+    silverletter-thunderbolt-sleep.service \
+    silverletter-thunderbolt-hotplug.service \
+    silverletter-thunderbolt-disconnect.path \
+    2>/dev/null || true
+rm -f \
+    /usr/bin/silverletter-thunderbolt-debug \
+    /usr/lib/tmpfiles.d/silverletter-thunderbolt.conf \
+    /usr/share/polkit-1/actions/io.github.networkoctopus.linuxbookair.thunderbolt.policy \
+    /usr/lib/systemd/system/silverletter-thunderbolt-sleep.service \
+    /usr/lib/systemd/system/silverletter-thunderbolt-hotplug.service \
+    /usr/lib/systemd/system/silverletter-thunderbolt-disconnect.service \
+    /usr/lib/systemd/system/silverletter-thunderbolt-disconnect.path
+
+for runtime_cmd in flock logger modprobe pkexec udevadm; do
+    command -v "$runtime_cmd" >/dev/null
+done
 
 ### ── GNOME Shell indicator ──
 THUNDERBOLT_UUID="thunderbolt@silverletter.local"

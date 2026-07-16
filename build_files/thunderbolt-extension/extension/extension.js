@@ -84,7 +84,7 @@ class ThunderboltIndicator extends PanelMenu.Button {
     }
 
     _setState(state) {
-        const adapterPresent = state === 'enabled';
+        const adapterPresent = state === 'enabled' || state === 'ready';
         const warning = state === 'powerdown-incomplete';
 
         this._state = state;
@@ -95,9 +95,9 @@ class ThunderboltIndicator extends PanelMenu.Button {
             this._statusItem.label.text = 'Thunderbolt is in use';
             this.accessible_name = 'Thunderbolt in use';
         } else if (state === 'ready') {
-            this._statusItem.label.text = 'Thunderbolt is ready';
-            this._powerItem.label.text = 'Connect an adapter to use it';
-            this.accessible_name = 'Thunderbolt ready for an adapter';
+            this._statusItem.label.text = 'Thunderbolt connection is pending';
+            this._powerItem.label.text = 'Waiting for the adapter to finish connecting';
+            this.accessible_name = 'Thunderbolt connection pending';
         } else if (state === 'powering-down') {
             this._statusItem.label.text = 'Thunderbolt is powering down';
             this._powerItem.label.text = 'Maximum power saving is being restored';

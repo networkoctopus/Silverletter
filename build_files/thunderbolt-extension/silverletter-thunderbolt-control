@@ -4,8 +4,10 @@ set -euo pipefail
 
 readonly STATE_DIR="/run/silverletter"
 readonly STATE_FILE="${STATE_DIR}/thunderbolt-enabled"
+readonly ESTABLISHED_FILE="${STATE_DIR}/thunderbolt-established"
 readonly STATE_EVENT_FILE="${STATE_DIR}/thunderbolt-state-changed"
 readonly DISCONNECT_REQUEST_FILE="${STATE_DIR}/thunderbolt-disconnect-request"
+readonly ACTIVITY_FILE="${STATE_DIR}/thunderbolt-hotplug-activity"
 readonly POWERING_DOWN_FILE="${STATE_DIR}/thunderbolt-powering-down"
 readonly REPLUG_DURING_POWERDOWN_FILE="${STATE_DIR}/thunderbolt-replug-during-powerdown"
 readonly SUSPEND_FILE="${STATE_DIR}/thunderbolt-suspending"
@@ -23,9 +25,9 @@ if [[ -r "$DEBUG_CONFIG" ]]; then
 fi
 
 readonly DEBUG_RUN_ID="${TB_DEBUG_RUN_ID:-none}"
-readonly ACTIVATION_WINDOW_SECONDS="${TB_ACTIVATION_WINDOW_SECONDS:-0}"
-readonly ACTIVATION_STABLE_SECONDS="${TB_ACTIVATION_STABLE_SECONDS:-0}"
-readonly DISCONNECT_SETTLE_SECONDS="${TB_DISCONNECT_SETTLE_SECONDS:-2}"
+readonly ACTIVATION_WINDOW_SECONDS="${TB_ACTIVATION_WINDOW_SECONDS:-10}"
+readonly ACTIVATION_STABLE_SECONDS="${TB_ACTIVATION_STABLE_SECONDS:-3}"
+readonly DISCONNECT_SETTLE_SECONDS="${TB_DISCONNECT_SETTLE_SECONDS:-20}"
 
 log_event() {
     local priority="$1"
@@ -63,13 +65,20 @@ notify_state_change() {
     touch "$STATE_EVENT_FILE"
 }
 
+record_hotplug_activity() {
+    local action="$1"
+
+    install -d -m 0755 "$STATE_DIR"
+    printf '%s %s %s\n' "$action" "$(date +%s%N)" "$$" > "$ACTIVITY_FILE"
+}
+
 is_falcon_ridge_device() {
     local path="$1"
     local vendor device
 
     [[ -r "${path}/vendor" && -r "${path}/device" ]] || return 1
-    read -r vendor < "${path}/vendor"
-    read -r device < "${path}/device"
+    read -r vendor < "${path}/vendor" || return 1
+    read -r device < "${path}/device" || return 1
     [[ "$vendor" == "0x8086" && ( "$device" == "0x156a" || "$device" == "0x156b" ) ]]
 }
 
@@ -104,7 +113,7 @@ external_device_present() {
 
     for path in /sys/bus/pci/devices/*; do
         [[ -e "$path" ]] || continue
-        real_path=$(readlink -f "$path")
+        real_path=$(readlink -f "$path" 2>/dev/null) || continue
         if [[ "$real_path" == *"/0000:06:03.0/"* ]]; then
             return 0
         fi
@@ -117,7 +126,7 @@ thunderbolt_pci_addresses() {
 
     for path in /sys/bus/pci/devices/*; do
         [[ -e "$path" ]] || continue
-        real_path=$(readlink -f "$path")
+        real_path=$(readlink -f "$path" 2>/dev/null) || continue
         if [[ "$real_path" == *"/0000:05:00.0"* ]]; then
             addresses+="${addresses:+,}$(basename "$path")"
         fi
@@ -126,15 +135,17 @@ thunderbolt_pci_addresses() {
 }
 
 log_snapshot() {
-    local stage="$1" marker="absent" module="unloaded" nhi="absent" external="absent" hierarchy="absent"
+    local stage="$1" marker="absent" established="absent" module="unloaded"
+    local nhi="absent" external="absent" hierarchy="absent"
 
     [[ -e "$STATE_FILE" ]] && marker="present"
+    [[ -e "$ESTABLISHED_FILE" ]] && established="present"
     lsmod | grep -q '^thunderbolt ' && module="loaded"
     nhi_present && nhi="present"
     external_device_present && external="present"
     falcon_ridge_present && hierarchy="present"
     log_event daemon.info \
-        "stage=$stage marker=$marker module=$module nhi=$nhi external=$external hierarchy=$hierarchy pci_devices=$(thunderbolt_pci_addresses)"
+        "stage=$stage marker=$marker established=$established module=$module nhi=$nhi external=$external hierarchy=$hierarchy pci_devices=$(thunderbolt_pci_addresses)"
 }
 
 thunderbolt_storage_present() {
@@ -142,7 +153,7 @@ thunderbolt_storage_present() {
 
     for block in /sys/class/block/*; do
         [[ -e "$block" ]] || continue
-        target=$(readlink -f "$block")
+        target=$(readlink -f "$block" 2>/dev/null) || continue
         if [[ "$target" == *"/0000:05:00.0/"* ]]; then
             log_event daemon.warning \
                 "action=powerdown safety-check=failed block_device=$(basename "$block")"
@@ -153,7 +164,7 @@ thunderbolt_storage_present() {
 }
 
 show_status() {
-    if [[ -e "$STATE_FILE" ]] && external_device_present; then
+    if [[ -e "$STATE_FILE" && -e "$ESTABLISHED_FILE" ]] && external_device_present; then
         printf 'enabled\n'
     elif [[ -e "$STATE_FILE" ]]; then
         printf 'ready\n'
@@ -169,17 +180,24 @@ show_status() {
 }
 
 set_thunderbolt_tree_power_on() {
-    local path real_path
+    local path real_path failed=0
 
     for path in /sys/bus/pci/devices/*; do
         [[ -e "$path" ]] || continue
-        real_path=$(readlink -f "$path")
+        real_path=$(readlink -f "$path" 2>/dev/null) || continue
         if [[ "$real_path" == *"/0000:05:00.0"* && -w "${path}/power/control" ]]; then
-            printf 'on\n' > "${path}/power/control"
-            log_event daemon.info \
-                "action=activate stage=runtime-pm device=$(basename "$path") control=on"
+            if printf 'on\n' > "${path}/power/control"; then
+                log_event daemon.info \
+                    "action=activate stage=runtime-pm device=$(basename "$path") control=on"
+            else
+                log_event daemon.warning \
+                    "action=activate stage=runtime-pm-failed device=$(basename "$path") control=on"
+                failed=1
+            fi
         fi
     done
+
+    return "$failed"
 }
 
 # This deliberately does almost no work: it runs directly from udev so the
@@ -188,6 +206,7 @@ set_thunderbolt_tree_power_on() {
 claim_hotplug() {
     require_root
     install -d -m 0755 "$STATE_DIR"
+    record_hotplug_activity add
 
     if [[ -e "$SUSPEND_FILE" ]]; then
         log_event daemon.info "action=hotplug-claim result=skipped reason=suspend-in-progress"
@@ -227,17 +246,38 @@ claim_hotplug() {
 request_hotplug_release() {
     require_root
     install -d -m 0755 "$STATE_DIR"
-    printf '%s\n' "$$" > "$DISCONNECT_REQUEST_FILE"
+    record_hotplug_activity remove
+    printf '%s %s\n' "$(date +%s%N)" "$$" > "$DISCONNECT_REQUEST_FILE"
     notify_state_change
 }
 
-release_hotplug() {
-    # One physical unplug produces several PCI remove events. Allow the whole
-    # external subtree to settle before deciding whether the port is unused.
-    log_event daemon.info \
-        "action=disconnect stage=settling debug_run=$DEBUG_RUN_ID seconds=$DISCONNECT_SETTLE_SECONDS"
-    sleep "$DISCONNECT_SETTLE_SECONDS"
+wait_for_disconnect_quiet() {
+    local activity="" current="" quiet_since=$SECONDS
 
+    [[ -r "$ACTIVITY_FILE" ]] && activity="$(< "$ACTIVITY_FILE")"
+    log_event daemon.info \
+        "action=disconnect stage=waiting-for-quiet debug_run=$DEBUG_RUN_ID seconds=$DISCONNECT_SETTLE_SECONDS"
+
+    while (( SECONDS - quiet_since < DISCONNECT_SETTLE_SECONDS )); do
+        if external_device_present; then
+            log_event daemon.info "action=disconnect result=skipped reason=external-device-present"
+            return 1
+        fi
+
+        current=""
+        [[ -r "$ACTIVITY_FILE" ]] && current="$(< "$ACTIVITY_FILE")"
+        if [[ "$current" != "$activity" ]]; then
+            activity="$current"
+            quiet_since=$SECONDS
+            log_event daemon.info "action=disconnect stage=quiet-window-restarted reason=hotplug-activity"
+        fi
+        sleep 1
+    done
+
+    return 0
+}
+
+release_hotplug() {
     if [[ -e "$SUSPEND_FILE" ]]; then
         log_event daemon.info "action=disconnect result=skipped reason=suspend-in-progress"
         return 0
@@ -249,8 +289,27 @@ release_hotplug() {
         return 1
     fi
 
+    # A first-generation endpoint can briefly disappear while Falcon Ridge is
+    # still training the physical link. Only a session that was previously
+    # established can produce a confirmed disconnect. Pending sessions remain
+    # armed so a delayed enumeration never races a destructive PCI teardown.
+    if [[ ! -e "$ESTABLISHED_FILE" ]]; then
+        log_event daemon.warning \
+            "action=disconnect result=skipped reason=session-not-yet-established pending_session=preserved"
+        notify_state_change
+        return 0
+    fi
+
+    # Coalesce the external remove cascade and restart the timer for every
+    # subsequent add/remove event. This keeps teardown away from an unstable
+    # link and from immediate reconnects.
+    if ! wait_for_disconnect_quiet; then
+        notify_state_change
+        return 0
+    fi
+
     if external_device_present; then
-        log_event daemon.info "action=disconnect result=skipped reason=external-device-present"
+        log_event daemon.info "action=disconnect result=skipped reason=external-device-present-after-quiet"
         notify_state_change
         return 0
     fi
@@ -277,7 +336,7 @@ release_hotplug() {
     : > "$POWERING_DOWN_FILE"
     chmod 0644 "$POWERING_DOWN_FILE"
     trap 'rm -f "$POWERING_DOWN_FILE"; notify_state_change' EXIT
-    rm -f "$STATE_FILE" "$LEGACY_RESTART_FILE"
+    rm -f "$STATE_FILE" "$ESTABLISHED_FILE" "$LEGACY_RESTART_FILE"
     notify_state_change
     log_event daemon.notice "action=disconnect stage=claim-released"
 
@@ -354,19 +413,6 @@ wait_for_external_device() {
     return 1
 }
 
-guarded_fallback_powerdown() {
-    : > "$POWERING_DOWN_FILE"
-    chmod 0644 "$POWERING_DOWN_FILE"
-    notify_state_change
-    "$POWERDOWN_HELPER" || true
-    rm -f "$POWERING_DOWN_FILE"
-    notify_state_change
-
-    if [[ -e "$REPLUG_DURING_POWERDOWN_FILE" ]]; then
-        log_event daemon.err "action=activate-fallback result=aborted reason=device-reconnected-during-powerdown reboot_required=yes"
-    fi
-}
-
 activate_hotplug() {
     local failed=0
 
@@ -382,37 +428,54 @@ activate_hotplug() {
     flock 8
     log_event daemon.info "action=activate stage=powerdown-lock-acquired"
 
-    # If teardown won the race there is no session to keep active. Returning
-    # to the powered-down state lets a later physical replug try again.
-    if ! wait_for_external_device; then
-        rm -f "$STATE_FILE"
-        notify_state_change
+    if [[ -e "$POWERING_DOWN_FILE" || -e "$REPLUG_DURING_POWERDOWN_FILE" ]]; then
         flock -u 8
-        log_event daemon.warning "action=activate result=missed reason=external-device-not-stable"
-        guarded_fallback_powerdown
+        log_event daemon.err "action=activate result=refused reason=unsafe-powerdown-state reboot_required=yes"
+        notify_state_change
+        return 1
+    fi
+
+    if [[ ! -e "$STATE_FILE" ]]; then
+        flock -u 8
+        log_event daemon.info "action=activate result=skipped reason=claim-released-before-lock"
         return 0
     fi
 
+    # Claim the internal hierarchy before waiting for the external endpoint.
+    # Falcon Ridge may temporarily remove and re-add that endpoint while its
+    # link trains; a missed observation must never trigger PCI removal.
+    if ! set_thunderbolt_tree_power_on; then
+        log_event daemon.err "action=activate result=failed reason=runtime-pm"
+        failed=1
+    fi
     if ! modprobe thunderbolt; then
         log_event daemon.err "action=activate result=failed reason=module-load"
-        failed=1
-    elif ! set_thunderbolt_tree_power_on; then
-        log_event daemon.err "action=activate result=failed reason=runtime-pm"
         failed=1
     fi
 
     if (( failed )); then
-        rm -f "$STATE_FILE"
-        notify_state_change
         flock -u 8
-        guarded_fallback_powerdown
+        log_event daemon.err \
+            "action=activate result=failed pending_session=preserved automatic_powerdown=no"
+        notify_state_change
         return 1
     fi
 
     flock -u 8
+
+    if wait_for_external_device; then
+        : > "$ESTABLISHED_FILE"
+        chmod 0644 "$ESTABLISHED_FILE"
+        notify_state_change
+        log_snapshot "activate-after"
+        log_event daemon.notice "action=activate result=success state=active lifetime=while-device-present"
+        return 0
+    fi
+
     notify_state_change
-    log_snapshot "activate-after"
-    log_event daemon.notice "action=activate result=success lifetime=while-device-present"
+    log_snapshot "activate-pending"
+    log_event daemon.notice \
+        "action=activate result=success state=pending reason=external-device-not-stable automatic_powerdown=no"
 }
 
 power_down_thunderbolt() {
@@ -420,6 +483,12 @@ power_down_thunderbolt() {
 
     log_event daemon.notice "action=powerdown-request reason=$reason stage=start"
     log_snapshot "powerdown-request-before"
+
+    if [[ -e "$REPLUG_DURING_POWERDOWN_FILE" ]]; then
+        log_event daemon.err \
+            "action=powerdown-request reason=$reason result=refused reason_detail=unsafe-replug-recorded"
+        return 1
+    fi
 
     if thunderbolt_storage_present; then
         log_event daemon.err "action=powerdown-request reason=$reason result=refused reason_detail=thunderbolt-storage-present"
@@ -442,7 +511,7 @@ power_down_thunderbolt() {
         log_event daemon.info "action=powerdown-request stage=module-removed module=thunderbolt"
     fi
 
-    rm -f "$STATE_FILE" "$LEGACY_RESTART_FILE"
+    rm -f "$STATE_FILE" "$ESTABLISHED_FILE" "$LEGACY_RESTART_FILE"
     notify_state_change
     "$POWERDOWN_HELPER"
 
@@ -476,7 +545,7 @@ prepare_suspend() {
 }
 
 resume_from_suspend() {
-    rm -f "$SUSPEND_FILE"
+    rm -f "$SUSPEND_FILE" "$ESTABLISHED_FILE"
     notify_state_change
     log_event daemon.notice "action=resume stage=start"
 

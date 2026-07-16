@@ -1,4 +1,6 @@
 #!/bin/sh
+set -eu
+
 STATEFILE=/run/silverletter/thunderbolt-enabled
 REPLUGFILE=/run/silverletter/thunderbolt-replug-during-powerdown
 LOCKFILE=/run/tb-powerdown.lock
@@ -12,7 +14,6 @@ fi
 TB_DEBUG_RUN_ID=${TB_DEBUG_RUN_ID:-none}
 TB_POWERDOWN_INITIAL_DELAY_SECONDS=${TB_POWERDOWN_INITIAL_DELAY_SECONDS:-2}
 TB_RUNTIME_PM_SETTLE_SECONDS=${TB_RUNTIME_PM_SETTLE_SECONDS:-1}
-TB_PCI_REMOVE_PAUSE_SECONDS=${TB_PCI_REMOVE_PAUSE_SECONDS:-0}
 if [ -e "$STATEFILE" ]; then
     logger -t "$LOG_TAG" "action=powerdown result=skipped reason=temporary-enable-active"
     exit 0
@@ -24,7 +25,7 @@ if ! flock -n 9; then
 fi
 
 logger -t "$LOG_TAG" \
-    "action=powerdown stage=start debug_run=$TB_DEBUG_RUN_ID initial_delay=$TB_POWERDOWN_INITIAL_DELAY_SECONDS runtime_pm_settle=$TB_RUNTIME_PM_SETTLE_SECONDS pci_remove_pause=$TB_PCI_REMOVE_PAUSE_SECONDS"
+    "action=powerdown stage=start debug_run=$TB_DEBUG_RUN_ID initial_delay=$TB_POWERDOWN_INITIAL_DELAY_SECONDS runtime_pm_settle=$TB_RUNTIME_PM_SETTLE_SECONDS"
 sleep "$TB_POWERDOWN_INITIAL_DELAY_SECONDS"
 
 # An enable request may have arrived while this udev job was waiting.
@@ -66,9 +67,6 @@ for dev in $TB_DEVS; do
         logger -t "$LOG_TAG" "action=powerdown stage=pci-remove-start device=0000:$dev"
         echo 1 > "$path/remove"
         logger -t "$LOG_TAG" "action=powerdown stage=pci-remove device=0000:$dev"
-        if [ "$TB_PCI_REMOVE_PAUSE_SECONDS" -gt 0 ]; then
-            sleep "$TB_PCI_REMOVE_PAUSE_SECONDS"
-        fi
     fi
 done
 

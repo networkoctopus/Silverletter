@@ -4,5 +4,6 @@ Description=Keep an externally connected Thunderbolt device active
 [Service]
 Type=oneshot
 ExecStart=/usr/libexec/silverletter-thunderbolt-control hotplug-activate
-# Includes the optional debug discovery window and a guarded fallback teardown.
-TimeoutStartSec=240
+# The observation window only distinguishes pending from active. It never
+# invokes PCI teardown; teardown is reserved for a confirmed disconnect.
+TimeoutStartSec=60

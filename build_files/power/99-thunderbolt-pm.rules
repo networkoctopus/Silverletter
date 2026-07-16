@@ -16,7 +16,8 @@ ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x156a",
 # KERNELS matches a parent, so this excludes the built-in 06:03.0 bridge itself
 # and matches any external PCIe-tunnelled bridge or endpoint below it. The
 # direct RUN helper only creates a cancellation marker; systemd does the slow
-# driver and runtime-PM work outside the udev worker.
+# driver and runtime-PM work outside the udev worker. Repeated add events also
+# refresh the disconnect quiet window.
 ACTION=="add", SUBSYSTEM=="pci", KERNELS=="0000:06:03.0", \
     RUN+="/usr/libexec/silverletter-thunderbolt-control hotplug-claim", \
     TAG+="systemd", ENV{SYSTEMD_WANTS}+="silverletter-thunderbolt-hotplug.service"
@@ -31,11 +32,11 @@ ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x156a",
 ACTION=="add", SUBSYSTEM=="pci", KERNELS=="0000:06:03.0", \
     TEST=="/run/silverletter/thunderbolt-enabled", ATTR{power/control}="on"
 
-# Each external function emits a remove event during unplug. The direct helper
-# only records a request; a systemd path unit coalesces the cascade and performs
-# the delayed, reconnect-safe teardown outside the udev worker. DEVPATH remains
-# available even though the removed device's sysfs attributes may already be
-# gone.
+# Each external function emits a remove event during unplug or transient link
+# training. The direct helper records activity; the delayed service only tears
+# down a previously established session after a quiet interval with no add or
+# remove events. DEVPATH remains available even though the removed device's
+# sysfs attributes may already be gone.
 ACTION=="remove", SUBSYSTEM=="pci", DEVPATH=="*/0000:06:03.0/*", \
     RUN+="/usr/libexec/silverletter-thunderbolt-control hotplug-release-request"
 

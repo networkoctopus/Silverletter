@@ -4,5 +4,5 @@
   "description": "Manually enable the experimental Thunderbolt port until the next reboot.",
   "shell-version": ["45", "46", "47", "48", "49", "50"],
   "url": "https://github.com/networkoctopus/Silverletter",
-  "version": 10
+  "version": 12
 }

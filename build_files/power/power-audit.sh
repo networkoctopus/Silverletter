@@ -130,8 +130,7 @@ header "Thunderbolt"
 
 TB_ENABLED=0
 TB_ACTIVE=0
-if [[ -f /run/udev/rules.d/98-silverletter-thunderbolt-enabled.rules &&
-      -L /run/udev/rules.d/99-thunderbolt-pm.rules &&
+if [[ -L /run/udev/rules.d/99-thunderbolt-pm.rules &&
       "$(readlink /run/udev/rules.d/99-thunderbolt-pm.rules)" == "/dev/null" ]]; then
     TB_ENABLED=1
     if [[ -e /sys/bus/pci/devices/0000:07:00.0 ]]; then
@@ -179,7 +178,8 @@ else
 fi
 
 # The complete hierarchy should be absent while idle. During a temporary
-# session the 156b bridges are held on by the boot-scoped udev rule.
+# session the kernel manages runtime power after the image power-down rule is
+# masked for the remainder of the boot.
 header "Thunderbolt PCIe Runtime PM"
 TB_DEVS=(
     "0000:05:00.0"
@@ -194,13 +194,8 @@ for dev in "${TB_DEVS[@]}"; do
     if [[ -e "/sys/bus/pci/devices/$dev" ]]; then
         ctrl=$(cat /sys/bus/pci/devices/$dev/power/control 2>/dev/null)
         status=$(cat /sys/bus/pci/devices/$dev/power/runtime_status 2>/dev/null)
-        device_id=$(cat /sys/bus/pci/devices/$dev/device 2>/dev/null)
-        if [[ $TB_ENABLED -eq 1 && "$device_id" == "0x156b" && "$ctrl" == "on" ]]; then
-            pass "$dev — control=$ctrl status=$status (temporary session)"
-        elif [[ $TB_ENABLED -eq 1 && "$device_id" == "0x156b" ]]; then
-            fail "$dev — control=$ctrl (expected on for 156b bridge) status=$status"
-        elif [[ $TB_ENABLED -eq 1 ]]; then
-            pass "$dev — control=$ctrl status=$status (temporary session)"
+        if [[ $TB_ENABLED -eq 1 ]]; then
+            info "$dev — control=$ctrl status=$status (kernel-managed temporary session)"
         else
             fail "$dev — still present in the default powered-down state control=$ctrl status=$status"
         fi

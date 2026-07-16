@@ -92,6 +92,15 @@ class ThunderboltIndicator extends PanelMenu.Button {
             this._statusItem.label.text = 'Enabling Thunderbolt…';
     }
 
+    _setError(message) {
+        this._enabled = false;
+        this._icon.set_style(`color: ${DISABLED_COLOR};`);
+        this._actionItem.visible = true;
+        this._statusItem.label.text = 'Thunderbolt could not be enabled';
+        this._instructionItem.label.text = message;
+        this.accessible_name = 'Thunderbolt enablement failed';
+    }
+
     _spawn(argv, callback) {
         let process;
         try {
@@ -136,10 +145,6 @@ class ThunderboltIndicator extends PanelMenu.Button {
         if (this._busy || this._enabled)
             return;
 
-        Main.notify(
-            'Experimental Thunderbolt support',
-            'Connected devices may cause system instability. Reboot to restore the default powered-down state.'
-        );
         this._setBusy(true);
         this._spawn(['pkexec', CONTROL, 'enable'], (successful, stdout, stderr) => {
             if (this._destroyed)
@@ -147,24 +152,12 @@ class ThunderboltIndicator extends PanelMenu.Button {
 
             this._setBusy(false);
             if (successful) {
-                if (stdout === 'armed') {
-                    Main.notify(
-                        'Thunderbolt is ready until next reboot',
-                        'Disconnect and reconnect your Thunderbolt adapter.'
-                    );
-                } else {
-                    Main.notify(
-                        'Thunderbolt enabled until next reboot',
-                        'Connect your Thunderbolt adapter now.'
-                    );
-                }
+                this._setState(stdout === 'armed' ? 'armed' : 'active');
             } else {
-                Main.notifyError(
-                    'Thunderbolt could not be enabled',
+                this._setError(
                     stderr || 'The Falcon Ridge controller did not appear.'
                 );
             }
-            this._refresh();
         });
     }
 

@@ -8,7 +8,6 @@ readonly POWERDOWN_LOCK="/run/tb-powerdown.lock"
 readonly POWERDOWN_HELPER="/usr/libexec/tb-powerdown.sh"
 readonly RUNTIME_RULE_DIR="/run/udev/rules.d"
 readonly POWERDOWN_MASK="${RUNTIME_RULE_DIR}/99-thunderbolt-pm.rules"
-readonly ENABLE_RULE="${RUNTIME_RULE_DIR}/98-silverletter-thunderbolt-enabled.rules"
 readonly LOG_TAG="silverletter-thunderbolt"
 
 log_event() {
@@ -29,8 +28,7 @@ nhi_present() {
 }
 
 session_enabled() {
-    [[ -f "$ENABLE_RULE" &&
-       -L "$POWERDOWN_MASK" &&
+    [[ -L "$POWERDOWN_MASK" &&
        "$(readlink "$POWERDOWN_MASK")" == "/dev/null" ]]
 }
 
@@ -46,46 +44,20 @@ show_status() {
     fi
 }
 
-write_runtime_rules() {
-    local rule_tmp
-
+mask_powerdown_rule() {
     install -d -m 0755 "$STATE_DIR" "$RUNTIME_RULE_DIR"
 
     # A same-named /dev/null link in /run overrides the image's boot
     # power-down rule until /run is cleared by the next reboot.
     ln -sfn /dev/null "$POWERDOWN_MASK"
 
-    rule_tmp="$(mktemp "${RUNTIME_RULE_DIR}/.98-silverletter-thunderbolt-enabled.rules.XXXXXX")"
-    printf '%s\n' \
-        '# Boot-scoped Silverletter Thunderbolt enablement.' \
-        'ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x156b", ATTR{power/control}="on"' \
-        > "$rule_tmp"
-    chmod 0644 "$rule_tmp"
-    mv -f "$rule_tmp" "$ENABLE_RULE"
-
     udevadm control --reload-rules
-    log_event daemon.info "action=enable stage=runtime-rules-installed lifetime=until-reboot"
+    log_event daemon.info "action=enable stage=powerdown-rule-masked lifetime=until-reboot"
 }
 
-remove_runtime_rules() {
-    rm -f "$POWERDOWN_MASK" "$ENABLE_RULE"
+remove_powerdown_mask() {
+    rm -f "$POWERDOWN_MASK"
     udevadm control --reload-rules || true
-}
-
-set_present_bridges_on() {
-    local path vendor device
-
-    for path in /sys/bus/pci/devices/*; do
-        [[ -r "$path/vendor" && -r "$path/device" ]] || continue
-        read -r vendor < "$path/vendor"
-        read -r device < "$path/device"
-        if [[ "$vendor" == "0x8086" && "$device" == "0x156b" &&
-              -w "$path/power/control" ]]; then
-            printf 'on\n' > "$path/power/control"
-            log_event daemon.info \
-                "action=enable stage=runtime-pm device=$(basename "$path") control=on"
-        fi
-    done
 }
 
 enable_thunderbolt() {
@@ -95,7 +67,7 @@ enable_thunderbolt() {
         local status=$?
         trap - ERR
         log_event daemon.err "action=enable result=failed exit_status=$status"
-        remove_runtime_rules
+        remove_powerdown_mask
         if (( powerdown_lock_acquired )); then
             flock -u 8 || true
         fi
@@ -106,7 +78,7 @@ enable_thunderbolt() {
     trap rollback_enable ERR
 
     log_event daemon.notice "action=enable stage=start lifetime=until-reboot"
-    write_runtime_rules
+    mask_powerdown_rule
 
     # Let every udev job that was queued under the image rule finish. The
     # power-down helper is deliberately not cancellable, so manual activation
@@ -150,7 +122,6 @@ enable_thunderbolt() {
         return 0
     fi
 
-    set_present_bridges_on
     flock -u 8
     powerdown_lock_acquired=0
     trap - ERR

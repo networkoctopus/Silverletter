@@ -550,6 +550,24 @@ power_down_thunderbolt() {
         return 1
     fi
 
+    rm -f "$STATE_FILE" "$ESTABLISHED_FILE" "$LEGACY_RESTART_FILE"
+    notify_state_change
+    if ! "$POWERDOWN_HELPER"; then
+        log_event daemon.err \
+            "action=powerdown-request reason=$reason result=failed reason_detail=powerdown-helper"
+        log_snapshot "powerdown-request-helper-failed"
+        return 1
+    fi
+
+    if falcon_ridge_present; then
+        log_event daemon.err "action=powerdown-request reason=$reason result=failed reason_detail=pci-hierarchy-still-present"
+        log_snapshot "powerdown-request-incomplete"
+        return 1
+    fi
+
+    # Keep the Thunderbolt driver bound while sysfs runtime-PM and PCI removal
+    # run. Unloading it first can leave the NHI present but inaccessible,
+    # causing the preparatory writes to fail and preventing teardown.
     if lsmod | grep -q '^thunderbolt_net '; then
         if modprobe -r thunderbolt_net; then
             log_event daemon.info "action=powerdown-request stage=module-removed module=thunderbolt_net"
@@ -558,21 +576,14 @@ power_down_thunderbolt() {
         fi
     fi
     if lsmod | grep -q '^thunderbolt '; then
-        if ! modprobe -r thunderbolt; then
-            log_event daemon.err "action=powerdown-request result=failed reason=module-remove module=thunderbolt"
-            return 1
+        if modprobe -r thunderbolt; then
+            log_event daemon.info "action=powerdown-request stage=module-removed module=thunderbolt"
+        else
+            # The PCI hierarchy is already gone, so a module unload failure
+            # must be visible but must not turn a successful hardware teardown
+            # into a failed suspend.
+            log_event daemon.warning "action=powerdown-request stage=module-remove-failed module=thunderbolt"
         fi
-        log_event daemon.info "action=powerdown-request stage=module-removed module=thunderbolt"
-    fi
-
-    rm -f "$STATE_FILE" "$ESTABLISHED_FILE" "$LEGACY_RESTART_FILE"
-    notify_state_change
-    "$POWERDOWN_HELPER"
-
-    if falcon_ridge_present; then
-        log_event daemon.err "action=powerdown-request reason=$reason result=failed reason_detail=pci-hierarchy-still-present"
-        log_snapshot "powerdown-request-incomplete"
-        return 1
     fi
 
     notify_state_change

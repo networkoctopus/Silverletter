@@ -43,9 +43,20 @@ for dev in $TB_DEVS; do
     fi
     path="/sys/bus/pci/devices/0000:$dev"
     if [ -e "$path" ]; then
-        echo 0    > "$path/power/autosuspend_delay_ms"
-        echo auto > "$path/power/control"
-        logger -t "$LOG_TAG" "action=powerdown stage=runtime-pm device=0000:$dev control=auto"
+        runtime_pm_ok=1
+        if ! echo 0 > "$path/power/autosuspend_delay_ms"; then
+            runtime_pm_ok=0
+            logger -p daemon.warning -t "$LOG_TAG" \
+                "action=powerdown stage=runtime-pm-warning device=0000:$dev attribute=autosuspend_delay_ms"
+        fi
+        if ! echo auto > "$path/power/control"; then
+            runtime_pm_ok=0
+            logger -p daemon.warning -t "$LOG_TAG" \
+                "action=powerdown stage=runtime-pm-warning device=0000:$dev attribute=control"
+        fi
+        if [ "$runtime_pm_ok" -eq 1 ]; then
+            logger -t "$LOG_TAG" "action=powerdown stage=runtime-pm device=0000:$dev control=auto"
+        fi
     fi
 done
 

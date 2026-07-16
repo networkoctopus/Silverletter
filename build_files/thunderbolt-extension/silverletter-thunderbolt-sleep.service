@@ -13,4 +13,4 @@ TimeoutStartSec=60
 TimeoutStopSec=45
 
 [Install]
-RequiredBy=sleep.target
+WantedBy=sleep.target

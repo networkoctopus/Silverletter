@@ -129,7 +129,9 @@ config_tmp="$(mktemp "${STATE_DIR}/thunderbolt-debug.conf.XXXXXX")"
 mv -f "$config_tmp" "$CONFIG_FILE"
 chmod 0600 "$CONFIG_FILE"
 
-exec > >(tee -a "$LOG_FILE") 2>&1
+# The tee process must not inherit the session lock. Otherwise a surviving
+# output collector can keep tee alive and make a completed run look active.
+exec > >(exec 9>&-; tee -a "$LOG_FILE") 2>&1
 
 COLLECTOR_PIDS=()
 RUN_FINISHED=0
@@ -240,12 +242,14 @@ monitor_topology() {
 
 start_collectors() {
     (
+        exec 9>&-
         stdbuf -oL -eL journalctl -b -k -f -n 0 -o short-monotonic --no-pager 2>&1 |
             sed -u 's/^/[kernel] /'
     ) &
     COLLECTOR_PIDS+=("$!")
 
     (
+        exec 9>&-
         stdbuf -oL -eL journalctl -b -f -n 0 -o short-monotonic --no-pager 2>&1 |
             grep --line-buffered -Ei 'silverletter-thunderbolt|thunderbolt|systemd-sleep|suspend|resume|pcie|pci ' |
             sed -u 's/^/[journal] /'
@@ -253,15 +257,20 @@ start_collectors() {
     COLLECTOR_PIDS+=("$!")
 
     (
+        exec 9>&-
         stdbuf -oL -eL udevadm monitor --kernel --udev --subsystem-match=pci 2>&1 |
             sed -u 's/^/[udev] /'
     ) &
     COLLECTOR_PIDS+=("$!")
 
-    monitor_topology &
+    (
+        exec 9>&-
+        monitor_topology
+    ) &
     COLLECTOR_PIDS+=("$!")
 
     (
+        exec 9>&-
         while true; do
             sleep 2
             sync_log

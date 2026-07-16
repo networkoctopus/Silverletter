@@ -112,6 +112,7 @@ FILES=(
 if [[ $TB_FEATURE_INSTALLED -eq 1 ]]; then
     FILES+=(
         "/usr/libexec/silverletter-thunderbolt-control"
+        "/usr/bin/silverletter-thunderbolt-debug"
         "/usr/lib/systemd/system/silverletter-thunderbolt-sleep.service"
         "/usr/lib/systemd/system/silverletter-thunderbolt-hotplug.service"
         "/usr/lib/systemd/system/silverletter-thunderbolt-disconnect.service"

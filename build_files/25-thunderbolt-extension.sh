@@ -8,6 +8,8 @@ install -Dm644 /ctx/thunderbolt-extension/silverletter-thunderbolt.toml \
 ### ── Automatic hotplug control and suspend safety ──
 install -Dm755 /ctx/thunderbolt-extension/silverletter-thunderbolt-control \
     /usr/libexec/silverletter-thunderbolt-control
+install -Dm755 /ctx/thunderbolt-extension/silverletter-thunderbolt-debug \
+    /usr/bin/silverletter-thunderbolt-debug
 
 install -Dm644 /ctx/thunderbolt-extension/silverletter-thunderbolt-sleep.service \
     /usr/lib/systemd/system/silverletter-thunderbolt-sleep.service

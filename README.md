@@ -46,7 +46,7 @@ These closely related Intel-based MacBook Air computers are reasonable candidate
 
 > **Thunderbolt is powered down when unused and activates automatically when a device is connected.** Hotplug and suspend/resume have been tested with an Apple Thunderbolt to Gigabit Ethernet Adapter; other Thunderbolt devices may work but are not guaranteed.
 
-Thunderbolt control events are recorded in the system journal. For troubleshooting, run `sudo journalctl -b -t silverletter-thunderbolt`.
+Thunderbolt control events are recorded in the system journal. For troubleshooting, run `sudo journalctl -b -t silverletter-thunderbolt`; guided timing tests are available with `sudo silverletter-thunderbolt-debug --preset=1` and write a single log under `/var/log/silverletter/thunderbolt-debug/`.
 
 ## Switch from another bootc system
 

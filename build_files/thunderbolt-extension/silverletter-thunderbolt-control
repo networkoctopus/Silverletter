@@ -7,18 +7,49 @@ readonly STATE_FILE="${STATE_DIR}/thunderbolt-enabled"
 readonly STATE_EVENT_FILE="${STATE_DIR}/thunderbolt-state-changed"
 readonly DISCONNECT_REQUEST_FILE="${STATE_DIR}/thunderbolt-disconnect-request"
 readonly POWERING_DOWN_FILE="${STATE_DIR}/thunderbolt-powering-down"
+readonly REPLUG_DURING_POWERDOWN_FILE="${STATE_DIR}/thunderbolt-replug-during-powerdown"
 readonly SUSPEND_FILE="${STATE_DIR}/thunderbolt-suspending"
 readonly LEGACY_RESTART_FILE="${STATE_DIR}/thunderbolt-restart-required"
 readonly CONTROL_LOCK="${STATE_DIR}/thunderbolt-control.lock"
 readonly POWERDOWN_LOCK="/run/tb-powerdown.lock"
 readonly POWERDOWN_HELPER="/usr/libexec/tb-powerdown.sh"
 readonly LOG_TAG="silverletter-thunderbolt"
+readonly DEBUG_CONFIG="${STATE_DIR}/thunderbolt-debug.conf"
+
+if [[ -r "$DEBUG_CONFIG" ]]; then
+    # The guided debug tool creates this root-owned, boot-scoped file.
+    # shellcheck disable=SC1090
+    source "$DEBUG_CONFIG"
+fi
+
+readonly DEBUG_RUN_ID="${TB_DEBUG_RUN_ID:-none}"
+readonly ACTIVATION_WINDOW_SECONDS="${TB_ACTIVATION_WINDOW_SECONDS:-0}"
+readonly ACTIVATION_STABLE_SECONDS="${TB_ACTIVATION_STABLE_SECONDS:-0}"
+readonly DISCONNECT_SETTLE_SECONDS="${TB_DISCONNECT_SETTLE_SECONDS:-2}"
 
 log_event() {
     local priority="$1"
     shift
     logger -p "$priority" -t "$LOG_TAG" -- "$*" || true
 }
+
+validate_timing() {
+    local name value
+
+    for name in \
+        ACTIVATION_WINDOW_SECONDS \
+        ACTIVATION_STABLE_SECONDS \
+        DISCONNECT_SETTLE_SECONDS
+    do
+        value="${!name}"
+        if [[ ! "$value" =~ ^[0-9]+$ ]]; then
+            log_event daemon.err "action=config result=failed variable=$name value=$value"
+            exit 2
+        fi
+    done
+}
+
+validate_timing
 
 require_root() {
     if [[ $EUID -ne 0 ]]; then
@@ -128,6 +159,8 @@ show_status() {
         printf 'ready\n'
     elif [[ -e "$POWERING_DOWN_FILE" ]]; then
         printf 'powering-down\n'
+    elif [[ -e "$REPLUG_DURING_POWERDOWN_FILE" ]]; then
+        printf 'powerdown-incomplete\n'
     elif falcon_ridge_present; then
         printf 'powerdown-incomplete\n'
     else
@@ -161,7 +194,24 @@ claim_hotplug() {
         return 0
     fi
 
-    rm -f "$LEGACY_RESTART_FILE" "$POWERING_DOWN_FILE"
+    # Re-enumerating below a bridge while the kernel is synchronously removing
+    # that bridge can stall PCI config-space readers and has caused a kernel
+    # panic on this hardware. Require teardown to finish and then replug.
+    if [[ -e "$POWERING_DOWN_FILE" ]]; then
+        : > "$REPLUG_DURING_POWERDOWN_FILE"
+        chmod 0644 "$REPLUG_DURING_POWERDOWN_FILE"
+        log_event daemon.warning "action=hotplug-claim result=skipped reason=powerdown-in-progress replug_required=yes"
+        notify_state_change
+        return 0
+    fi
+
+    if [[ -e "$REPLUG_DURING_POWERDOWN_FILE" ]]; then
+        log_event daemon.err "action=hotplug-claim result=skipped reason=unsafe-replug-recorded reboot_required=yes"
+        notify_state_change
+        return 0
+    fi
+
+    rm -f "$LEGACY_RESTART_FILE"
     if [[ ! -e "$STATE_FILE" ]]; then
         : > "$STATE_FILE"
         chmod 0644 "$STATE_FILE"
@@ -184,11 +234,19 @@ request_hotplug_release() {
 release_hotplug() {
     # One physical unplug produces several PCI remove events. Allow the whole
     # external subtree to settle before deciding whether the port is unused.
-    sleep 2
+    log_event daemon.info \
+        "action=disconnect stage=settling debug_run=$DEBUG_RUN_ID seconds=$DISCONNECT_SETTLE_SECONDS"
+    sleep "$DISCONNECT_SETTLE_SECONDS"
 
     if [[ -e "$SUSPEND_FILE" ]]; then
         log_event daemon.info "action=disconnect result=skipped reason=suspend-in-progress"
         return 0
+    fi
+
+    if [[ -e "$REPLUG_DURING_POWERDOWN_FILE" ]]; then
+        log_event daemon.err "action=disconnect result=refused reason=unsafe-replug-recorded reboot_required=yes"
+        notify_state_change
+        return 1
     fi
 
     if external_device_present; then
@@ -213,9 +271,9 @@ release_hotplug() {
         return 1
     fi
 
-    # Dropping the claim before invoking the existing helper makes teardown
-    # interruptible: a rapid reconnect recreates the marker and the helper
-    # cancels at one of its guarded checkpoints.
+    # Once PCI removal starts, a replug is unsafe. The udev claim path records
+    # it separately so the helper stops at its next guarded checkpoint without
+    # attempting activation against a hierarchy being dismantled.
     : > "$POWERING_DOWN_FILE"
     chmod 0644 "$POWERING_DOWN_FILE"
     trap 'rm -f "$POWERING_DOWN_FILE"; notify_state_change' EXIT
@@ -229,10 +287,10 @@ release_hotplug() {
         return 1
     fi
 
-    if [[ -e "$STATE_FILE" ]] || external_device_present; then
-        log_event daemon.notice "action=disconnect result=cancelled reason=device-reconnected"
+    if [[ -e "$REPLUG_DURING_POWERDOWN_FILE" ]] || external_device_present; then
+        log_event daemon.err "action=disconnect result=aborted reason=device-reconnected-during-powerdown reboot_required=yes"
         notify_state_change
-        return 0
+        return 1
     fi
 
     if falcon_ridge_present; then
@@ -262,6 +320,53 @@ release_hotplug() {
     log_event daemon.notice "action=disconnect result=success"
 }
 
+wait_for_external_device() {
+    local deadline stable_since=-1 present=0
+
+    if (( ACTIVATION_WINDOW_SECONDS == 0 && ACTIVATION_STABLE_SECONDS == 0 )); then
+        external_device_present
+        return
+    fi
+
+    deadline=$((SECONDS + ACTIVATION_WINDOW_SECONDS))
+    log_event daemon.info \
+        "action=activate stage=discovery-window debug_run=$DEBUG_RUN_ID window_seconds=$ACTIVATION_WINDOW_SECONDS stable_seconds=$ACTIVATION_STABLE_SECONDS"
+
+    while (( SECONDS <= deadline )); do
+        if external_device_present; then
+            if (( present == 0 )); then
+                present=1
+                stable_since=$SECONDS
+                log_event daemon.info "action=activate stage=external-device-observed"
+            fi
+            if (( SECONDS - stable_since >= ACTIVATION_STABLE_SECONDS )); then
+                log_event daemon.info "action=activate stage=external-device-stable"
+                return 0
+            fi
+        elif (( present == 1 )); then
+            present=0
+            stable_since=-1
+            log_event daemon.info "action=activate stage=external-device-lost-during-discovery"
+        fi
+        sleep 1
+    done
+
+    return 1
+}
+
+guarded_fallback_powerdown() {
+    : > "$POWERING_DOWN_FILE"
+    chmod 0644 "$POWERING_DOWN_FILE"
+    notify_state_change
+    "$POWERDOWN_HELPER" || true
+    rm -f "$POWERING_DOWN_FILE"
+    notify_state_change
+
+    if [[ -e "$REPLUG_DURING_POWERDOWN_FILE" ]]; then
+        log_event daemon.err "action=activate-fallback result=aborted reason=device-reconnected-during-powerdown reboot_required=yes"
+    fi
+}
+
 activate_hotplug() {
     local failed=0
 
@@ -271,18 +376,20 @@ activate_hotplug() {
     fi
 
     log_event daemon.notice "action=activate stage=start"
+    log_event daemon.info \
+        "action=activate stage=timing debug_run=$DEBUG_RUN_ID window_seconds=$ACTIVATION_WINDOW_SECONDS stable_seconds=$ACTIVATION_STABLE_SECONDS"
     exec 8> "$POWERDOWN_LOCK"
     flock 8
     log_event daemon.info "action=activate stage=powerdown-lock-acquired"
 
     # If teardown won the race there is no session to keep active. Returning
     # to the powered-down state lets a later physical replug try again.
-    if ! external_device_present; then
+    if ! wait_for_external_device; then
         rm -f "$STATE_FILE"
         notify_state_change
         flock -u 8
-        log_event daemon.warning "action=activate result=missed reason=external-device-disappeared"
-        "$POWERDOWN_HELPER" || true
+        log_event daemon.warning "action=activate result=missed reason=external-device-not-stable"
+        guarded_fallback_powerdown
         return 0
     fi
 
@@ -298,7 +405,7 @@ activate_hotplug() {
         rm -f "$STATE_FILE"
         notify_state_change
         flock -u 8
-        "$POWERDOWN_HELPER" || true
+        guarded_fallback_powerdown
         return 1
     fi
 

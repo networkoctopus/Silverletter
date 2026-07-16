@@ -169,8 +169,8 @@ else
     fail "thunderbolt-blacklist.conf missing or empty"
 fi
 
-# The stable idle design retains the Falcon Ridge bridges in D0 and removes
-# only the 07:00 NHI. Runtime PM can strand these bridges in D3cold.
+# The feature observes but does not change the Falcon Ridge bridge fabric. Only
+# the 07:00 NHI has an enforced power state.
 header "Thunderbolt PCIe Runtime PM"
 TB_BRIDGES=(
     "0000:05:00.0"
@@ -184,11 +184,7 @@ for dev in "${TB_BRIDGES[@]}"; do
     if [[ -e "/sys/bus/pci/devices/$dev" ]]; then
         ctrl=$(cat /sys/bus/pci/devices/$dev/power/control 2>/dev/null)
         status=$(cat /sys/bus/pci/devices/$dev/power/runtime_status 2>/dev/null)
-        if [[ "$ctrl" == "on" ]]; then
-            pass "$dev — retained bridge control=$ctrl status=$status"
-        else
-            fail "$dev — retained bridge control=$ctrl (expected on to avoid D3cold) status=$status"
-        fi
+        info "$dev — unmanaged bridge control=$ctrl status=$status"
     else
         warn "$dev — retained Falcon Ridge bridge is not present"
     fi
@@ -312,7 +308,7 @@ fi
 # ─── 7. PCIe RUNTIME PM ────────────────────────────────────────────────────
 header "PCIe Runtime PM Summary"
 
-is_retained_thunderbolt_bridge() {
+is_unmanaged_thunderbolt_bridge() {
     local dev="$1" vendor device
 
     vendor=$(cat "$dev/vendor" 2>/dev/null)
@@ -320,16 +316,18 @@ is_retained_thunderbolt_bridge() {
     [[ "$vendor" == "0x8086" && "$device" == "0x156b" ]]
 }
 
-total=0; auto=0; intentional_on=0; suspended=0; active_count=0
+total=0; auto=0; intentional_on=0; unmanaged_tb=0; suspended=0; active_count=0
 while IFS= read -r dev; do
     addr=$(basename "$dev")
     ctrl=$(cat "$dev/power/control" 2>/dev/null)
     status=$(cat "$dev/power/runtime_status" 2>/dev/null)
     total=$((total+1))
-    [[ "$ctrl" == "auto" ]] && auto=$((auto+1))
-    if [[ "$ctrl" == "on" ]]; then
-        if is_retained_thunderbolt_bridge "$dev" ||
-            [[ $TB_ENABLED -eq 1 && "$(readlink -f "$dev")" == *"/0000:05:00.0"* ]]; then
+    if is_unmanaged_thunderbolt_bridge "$dev"; then
+        unmanaged_tb=$((unmanaged_tb+1))
+    elif [[ "$ctrl" == "auto" ]]; then
+        auto=$((auto+1))
+    elif [[ "$ctrl" == "on" ]]; then
+        if [[ $TB_ENABLED -eq 1 && "$(readlink -f "$dev")" == *"/0000:05:00.0"* ]]; then
             intentional_on=$((intentional_on+1))
         fi
     fi
@@ -340,17 +338,18 @@ done < <(find /sys/bus/pci/devices -maxdepth 1 -mindepth 1)
 info "Total PCIe devices: $total"
 info "Runtime PM auto:    $auto / $total"
 [[ $intentional_on -gt 0 ]] && info "Thunderbolt intentionally kept on: $intentional_on"
+[[ $unmanaged_tb -gt 0 ]] && info "Thunderbolt bridges excluded from runtime-PM policy: $unmanaged_tb"
 info "Currently suspended: $suspended"
 info "Currently active:    $active_count"
 
-if [[ $((auto+intentional_on)) -eq $total ]]; then
-    if [[ $intentional_on -gt 0 ]]; then
-        pass "All non-Thunderbolt devices use runtime PM auto"
+if [[ $((auto+intentional_on+unmanaged_tb)) -eq $total ]]; then
+    if [[ $((intentional_on+unmanaged_tb)) -gt 0 ]]; then
+        pass "All devices covered by the runtime-PM policy use auto"
     else
         pass "All devices have runtime PM set to auto"
     fi
 else
-    warn "$((total-auto-intentional_on)) unexpected device(s) not set to auto runtime PM"
+    warn "$((total-auto-intentional_on-unmanaged_tb)) unexpected device(s) not set to auto runtime PM"
 fi
 
 # List any non-auto devices
@@ -359,9 +358,10 @@ for dev in /sys/bus/pci/devices/*; do
     ctrl=$(cat "$dev/power/control" 2>/dev/null)
     if [[ "$ctrl" != "auto" ]]; then
         name=$(lspci -s "$addr" 2>/dev/null | cut -d' ' -f3-)
-        if [[ "$ctrl" == "on" ]] &&
-            { is_retained_thunderbolt_bridge "$dev" ||
-              [[ $TB_ENABLED -eq 1 && "$(readlink -f "$dev")" == *"/0000:05:00.0"* ]]; }; then
+        if is_unmanaged_thunderbolt_bridge "$dev"; then
+            info "  $addr — control=$ctrl — $name (Thunderbolt bridge unmanaged by feature)"
+        elif [[ "$ctrl" == "on" && $TB_ENABLED -eq 1 &&
+                "$(readlink -f "$dev")" == *"/0000:05:00.0"* ]]; then
             info "  $addr — control=$ctrl — $name (intentional Thunderbolt state)"
         else
             fail "  $addr — control=$ctrl — $name"

@@ -34,35 +34,10 @@ if [ -e "$STATEFILE" ] || [ -e "$REPLUGFILE" ]; then
     exit 0
 fi
 
-# Keep the Falcon Ridge bridge fabric enumerated. Removing the upstream
-# 05:00/06:xx bridges has caused PCI config-space stalls and kernel panics on
-# this hardware, while the meaningful idle-power saving comes from quiescing
-# and removing the 07:00 NHI.
+# Do not change or remove the Falcon Ridge bridge fabric. Full bridge teardown
+# caused PCI stalls and kernel panics, and forcing bridge power states did not
+# restore hotplug reliably. This helper exclusively targets the 07:00 NHI.
 TB_NHI="07:00.0"
-TB_BRIDGES="06:06.0 06:05.0 06:04.0 06:03.0 06:00.0 05:00.0"
-
-# Keep the bridge fabric in D0 throughout NHI teardown. Allowing these bridges
-# to enter D3cold leaves them registered but inaccessible on this hardware,
-# preventing reliable hotplug and producing repeated PCI power-state errors.
-bridge_ready=1
-for dev in $TB_BRIDGES; do
-    path="/sys/bus/pci/devices/0000:$dev"
-    if [ -e "$path/power/control" ]; then
-        if echo on > "$path/power/control"; then
-            logger -t "$LOG_TAG" \
-                "action=powerdown stage=bridge-retained device=0000:$dev control=on"
-        else
-            bridge_ready=0
-            logger -p daemon.warning -t "$LOG_TAG" \
-                "action=powerdown stage=bridge-retain-warning device=0000:$dev attribute=control"
-        fi
-    fi
-done
-if [ "$bridge_ready" -ne 1 ]; then
-    logger -p daemon.err -t "$LOG_TAG" \
-        "action=powerdown result=failed reason=bridge-fabric-not-accessible"
-    exit 1
-fi
 
 if [ -e "$STATEFILE" ] || [ -e "$REPLUGFILE" ]; then
     logger -t "$LOG_TAG" "action=powerdown result=cancelled reason=claim-or-replug-during-runtime-pm"
@@ -95,10 +70,6 @@ if [ -e "$STATEFILE" ] || [ -e "$REPLUGFILE" ]; then
     exit 0
 fi
 
-if [ -e "$STATEFILE" ] || [ -e "$REPLUGFILE" ]; then
-    logger -t "$LOG_TAG" "action=powerdown result=cancelled reason=claim-or-replug-before-pci-remove"
-    exit 0
-fi
 if [ -e "$nhi_path/remove" ]; then
     logger -t "$LOG_TAG" "action=powerdown stage=pci-remove-start device=0000:$TB_NHI"
     echo 1 > "$nhi_path/remove"

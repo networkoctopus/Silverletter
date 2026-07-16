@@ -181,25 +181,24 @@ show_status() {
     fi
 }
 
-set_thunderbolt_tree_power_on() {
-    local path real_path failed=0
+set_nhi_power_on() {
+    local path="/sys/bus/pci/devices/0000:07:00.0"
 
-    for path in /sys/bus/pci/devices/*; do
-        [[ -e "$path" ]] || continue
-        real_path=$(readlink -f "$path" 2>/dev/null) || continue
-        if [[ "$real_path" == *"/0000:05:00.0"* && -w "${path}/power/control" ]]; then
-            if printf 'on\n' > "${path}/power/control"; then
-                log_event daemon.info \
-                    "action=activate stage=runtime-pm device=$(basename "$path") control=on"
-            else
-                log_event daemon.warning \
-                    "action=activate stage=runtime-pm-failed device=$(basename "$path") control=on"
-                failed=1
-            fi
-        fi
-    done
+    if [[ ! -e "$path" ]]; then
+        log_event daemon.info "action=activate stage=nhi-power result=skipped reason=nhi-absent"
+        return 0
+    fi
+    if [[ ! -w "$path/power/control" ]]; then
+        log_event daemon.warning "action=activate stage=nhi-power result=failed reason=control-not-writable"
+        return 1
+    fi
+    if printf 'on\n' > "$path/power/control"; then
+        log_event daemon.info "action=activate stage=nhi-power device=0000:07:00.0 control=on"
+        return 0
+    fi
 
-    return "$failed"
+    log_event daemon.warning "action=activate stage=nhi-power result=failed control=on"
+    return 1
 }
 
 # This deliberately does almost no work: it runs directly from udev so the
@@ -492,10 +491,9 @@ activate_hotplug() {
         return 0
     fi
 
-    # Claim the internal hierarchy before waiting for the external endpoint.
-    # Falcon Ridge may temporarily remove and re-add that endpoint while its
-    # link trains; a missed observation must never trigger PCI removal.
-    if ! set_thunderbolt_tree_power_on; then
+    # Only the NHI is managed here. The bridges and external functions retain
+    # the kernel-selected power state throughout activation.
+    if ! set_nhi_power_on; then
         log_event daemon.err "action=activate result=failed reason=runtime-pm"
         failed=1
     fi

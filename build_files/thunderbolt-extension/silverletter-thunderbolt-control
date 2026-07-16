@@ -8,11 +8,13 @@ readonly ESTABLISHED_FILE="${STATE_DIR}/thunderbolt-established"
 readonly STATE_EVENT_FILE="${STATE_DIR}/thunderbolt-state-changed"
 readonly DISCONNECT_REQUEST_FILE="${STATE_DIR}/thunderbolt-disconnect-request"
 readonly ACTIVITY_FILE="${STATE_DIR}/thunderbolt-hotplug-activity"
+readonly PREPARING_POWERDOWN_FILE="${STATE_DIR}/thunderbolt-preparing-powerdown"
 readonly POWERING_DOWN_FILE="${STATE_DIR}/thunderbolt-powering-down"
 readonly REPLUG_DURING_POWERDOWN_FILE="${STATE_DIR}/thunderbolt-replug-during-powerdown"
 readonly SUSPEND_FILE="${STATE_DIR}/thunderbolt-suspending"
 readonly LEGACY_RESTART_FILE="${STATE_DIR}/thunderbolt-restart-required"
 readonly CONTROL_LOCK="${STATE_DIR}/thunderbolt-control.lock"
+readonly TRANSITION_LOCK="${STATE_DIR}/thunderbolt-transition.lock"
 readonly POWERDOWN_LOCK="/run/tb-powerdown.lock"
 readonly POWERDOWN_HELPER="/usr/libexec/tb-powerdown.sh"
 readonly LOG_TAG="silverletter-thunderbolt"
@@ -207,10 +209,21 @@ claim_hotplug() {
     require_root
     install -d -m 0755 "$STATE_DIR"
     record_hotplug_activity add
+    exec 7> "$TRANSITION_LOCK"
+    flock 7
 
     if [[ -e "$SUSPEND_FILE" ]]; then
         log_event daemon.info "action=hotplug-claim result=skipped reason=suspend-in-progress"
         return 0
+    fi
+
+    # Preparation is still cancellable: the destructive helper has not
+    # started. Removing this marker plus the activity update above makes the
+    # final pre-teardown check preserve this new connection.
+    if [[ -e "$PREPARING_POWERDOWN_FILE" ]]; then
+        rm -f "$PREPARING_POWERDOWN_FILE"
+        log_event daemon.notice \
+            "action=hotplug-claim result=success stage=powerdown-preparation-cancelled"
     fi
 
     # Re-enumerating below a bridge while the kernel is synchronously removing
@@ -251,6 +264,12 @@ request_hotplug_release() {
     notify_state_change
 }
 
+schedule_pending_expiry() {
+    printf '%s %s pending\n' "$(date +%s%N)" "$$" > "$DISCONNECT_REQUEST_FILE"
+    log_event daemon.info \
+        "action=activate stage=pending-expiry-scheduled quiet_seconds=$DISCONNECT_SETTLE_SECONDS"
+}
+
 wait_for_disconnect_quiet() {
     local activity="" current="" quiet_since=$SECONDS
 
@@ -278,6 +297,8 @@ wait_for_disconnect_quiet() {
 }
 
 release_hotplug() {
+    local activity_before="" activity_after="" session_state="established"
+
     if [[ -e "$SUSPEND_FILE" ]]; then
         log_event daemon.info "action=disconnect result=skipped reason=suspend-in-progress"
         return 0
@@ -290,14 +311,14 @@ release_hotplug() {
     fi
 
     # A first-generation endpoint can briefly disappear while Falcon Ridge is
-    # still training the physical link. Only a session that was previously
-    # established can produce a confirmed disconnect. Pending sessions remain
-    # armed so a delayed enumeration never races a destructive PCI teardown.
+    # still training the physical link. Pending sessions therefore use the
+    # same activity-based quiet window as established disconnects. They are
+    # not preserved indefinitely: a false or abandoned claim must eventually
+    # return to the maximum-power-saving state.
     if [[ ! -e "$ESTABLISHED_FILE" ]]; then
-        log_event daemon.warning \
-            "action=disconnect result=skipped reason=session-not-yet-established pending_session=preserved"
-        notify_state_change
-        return 0
+        session_state="pending"
+        log_event daemon.info \
+            "action=disconnect stage=pending-session-expiry-check automatic_powerdown=yes"
     fi
 
     # Coalesce the external remove cascade and restart the timer for every
@@ -330,15 +351,46 @@ release_hotplug() {
         return 1
     fi
 
-    # Once PCI removal starts, a replug is unsafe. The udev claim path records
-    # it separately so the helper stops at its next guarded checkpoint without
-    # attempting activation against a hierarchy being dismantled.
+    # Phase one is explicitly cancellable. Give udev a short window to record
+    # a connection that arrived at the end of the quiet period, then verify
+    # both the topology and the activity generation before committing to PCI
+    # removal.
+    [[ -r "$ACTIVITY_FILE" ]] && activity_before="$(< "$ACTIVITY_FILE")"
+    : > "$PREPARING_POWERDOWN_FILE"
+    chmod 0644 "$PREPARING_POWERDOWN_FILE"
+    trap 'rm -f "$PREPARING_POWERDOWN_FILE" "$POWERING_DOWN_FILE"; notify_state_change' EXIT
+    log_event daemon.notice \
+        "action=disconnect stage=powerdown-preparing session=$session_state"
+    sleep 1
+
+    # Serialize the final decision with the lightweight udev claim path. This
+    # prevents a claim from being created in the gap between the last activity
+    # check and the transition to the non-cancellable removal phase.
+    exec 7> "$TRANSITION_LOCK"
+    flock 7
+    [[ -r "$ACTIVITY_FILE" ]] && activity_after="$(< "$ACTIVITY_FILE")"
+    if [[ ! -e "$PREPARING_POWERDOWN_FILE" ||
+          "$activity_after" != "$activity_before" ]] ||
+        external_device_present; then
+        rm -f "$PREPARING_POWERDOWN_FILE"
+        flock -u 7
+        log_event daemon.info \
+            "action=disconnect result=cancelled reason=activity-during-powerdown-preparation"
+        notify_state_change
+        return 0
+    fi
+
+    # Phase two starts immediately before the claim is released. From here a
+    # replug is unsafe and is recorded separately so activation cannot race
+    # the hierarchy being dismantled.
     : > "$POWERING_DOWN_FILE"
     chmod 0644 "$POWERING_DOWN_FILE"
-    trap 'rm -f "$POWERING_DOWN_FILE"; notify_state_change' EXIT
+    rm -f "$PREPARING_POWERDOWN_FILE"
     rm -f "$STATE_FILE" "$ESTABLISHED_FILE" "$LEGACY_RESTART_FILE"
+    flock -u 7
     notify_state_change
-    log_event daemon.notice "action=disconnect stage=claim-released"
+    log_event daemon.notice \
+        "action=disconnect stage=claim-released session=$session_state"
 
     if ! "$POWERDOWN_HELPER"; then
         log_event daemon.err "action=disconnect result=failed reason=powerdown-helper"
@@ -456,8 +508,9 @@ activate_hotplug() {
     if (( failed )); then
         flock -u 8
         log_event daemon.err \
-            "action=activate result=failed pending_session=preserved automatic_powerdown=no"
+            "action=activate result=failed pending_session=preserved automatic_powerdown=after-quiet"
         notify_state_change
+        schedule_pending_expiry
         return 1
     fi
 
@@ -475,7 +528,8 @@ activate_hotplug() {
     notify_state_change
     log_snapshot "activate-pending"
     log_event daemon.notice \
-        "action=activate result=success state=pending reason=external-device-not-stable automatic_powerdown=no"
+        "action=activate result=success state=pending reason=external-device-not-stable automatic_powerdown=after-quiet"
+    schedule_pending_expiry
 }
 
 power_down_thunderbolt() {

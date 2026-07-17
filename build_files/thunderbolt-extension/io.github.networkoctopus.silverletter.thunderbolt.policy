@@ -7,8 +7,8 @@
   <vendor_url>https://github.com/networkoctopus/Silverletter</vendor_url>
 
   <action id="io.github.networkoctopus.silverletter.thunderbolt.control">
-    <description>Temporarily enable the Thunderbolt port</description>
-    <message>Authentication is required to enable Thunderbolt until suspend or reboot</message>
+    <description>Control the Thunderbolt port</description>
+    <message>Authentication is required to change the Thunderbolt power state</message>
     <defaults>
       <allow_any>no</allow_any>
       <allow_inactive>no</allow_inactive>

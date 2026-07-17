@@ -1,5 +1,5 @@
 #!/bin/bash
-# Privileged backend for manual, boot-scoped Thunderbolt enablement.
+# Privileged backend for manual, boot-scoped Thunderbolt control.
 set -euo pipefail
 
 readonly STATE_DIR="/run/silverletter"
@@ -68,12 +68,10 @@ session_enabled() {
 }
 
 show_status() {
-    if session_enabled; then
-        if nhi_present; then
-            printf 'active\n'
-        else
-            printf 'armed\n'
-        fi
+    if thunderbolt_hierarchy_present || [[ -d /sys/module/thunderbolt ]]; then
+        printf 'active\n'
+    elif session_enabled; then
+        printf 'armed\n'
     else
         printf 'disabled\n'
     fi
@@ -82,12 +80,13 @@ show_status() {
 mask_powerdown_rule() {
     install -d -m 0755 "$STATE_DIR" "$RUNTIME_RULE_DIR"
 
-    # A same-named /dev/null link in /run overrides the image's boot
-    # power-down rule until /run is cleared by the next reboot.
+    # A same-named /dev/null link in /run overrides the image's power-down
+    # rule until manual disable, suspend teardown, or the next reboot.
     ln -sfn /dev/null "$POWERDOWN_MASK"
 
     udevadm control --reload-rules
-    log_event daemon.info "action=enable stage=powerdown-rule-masked lifetime=until-reboot"
+    log_event daemon.info \
+        "action=enable stage=powerdown-rule-masked lifetime=until-disable-suspend-or-reboot"
 }
 
 remove_powerdown_mask() {
@@ -112,7 +111,8 @@ enable_thunderbolt() {
     }
     trap rollback_enable ERR
 
-    log_event daemon.notice "action=enable stage=start lifetime=until-reboot"
+    log_event daemon.notice \
+        "action=enable stage=start lifetime=until-disable-suspend-or-reboot"
     mask_powerdown_rule
 
     # Let every udev job that was queued under the image rule finish. The
@@ -152,7 +152,7 @@ enable_thunderbolt() {
         powerdown_lock_acquired=0
         trap - ERR
         log_event daemon.notice \
-            "action=enable result=success state=armed controller=absent reconnect_required=yes lifetime=until-reboot"
+            "action=enable result=success state=armed controller=absent reconnect_required=yes lifetime=until-disable-suspend-or-reboot"
         printf 'armed\n'
         return 0
     fi
@@ -161,30 +161,50 @@ enable_thunderbolt() {
     powerdown_lock_acquired=0
     trap - ERR
     log_event daemon.notice \
-        "action=enable result=success state=active controller=0000:07:00.0 lifetime=until-reboot"
+        "action=enable result=success state=active controller=0000:07:00.0 lifetime=until-disable-suspend-or-reboot"
     printf 'active\n'
 }
 
-prepare_suspend() {
-    log_event daemon.notice "action=prepare-suspend stage=start"
+teardown_thunderbolt() {
+    local action="$1"
+    local was_enabled=0
+
+    if session_enabled; then
+        was_enabled=1
+    fi
+
+    restore_session_after_failure() {
+        if (( was_enabled )); then
+            install -d -m 0755 "$STATE_DIR" "$RUNTIME_RULE_DIR"
+            ln -sfn /dev/null "$POWERDOWN_MASK"
+            udevadm control --reload-rules || true
+            log_event daemon.warning \
+                "action=$action stage=powerdown-rule-remasked reason=teardown-failed"
+        fi
+    }
+
+    log_event daemon.notice "action=$action stage=start"
+
+    # Arbitrary storage cannot be safely unmounted by this privileged backend.
+    # Refuse the operation without changing session state; after the user
+    # ejects or disconnects the drive, disable or suspend can be retried.
+    if thunderbolt_storage_present; then
+        log_event daemon.err \
+            "action=$action result=failed reason=thunderbolt-storage-attached"
+        printf 'Eject or disconnect Thunderbolt storage before disabling Thunderbolt.\n' >&2
+        return 1
+    fi
 
     # Re-enable the image's normal udev power-down policy before touching the
     # PCI hierarchy. This also makes the teardown permanent until the next
     # explicit enable request.
     remove_powerdown_mask
-    log_event daemon.info "action=prepare-suspend stage=powerdown-rule-restored"
+    log_event daemon.info "action=$action stage=powerdown-rule-restored"
 
     if ! udevadm settle --timeout=30; then
-        log_event daemon.err "action=prepare-suspend result=failed reason=udev-timeout"
-        return 1
-    fi
-
-    # Arbitrary mounted storage cannot be safely unmounted from a system sleep
-    # hook. Refuse this suspend attempt instead of hot-removing a filesystem;
-    # after the user ejects or disconnects the drive, suspend can be retried.
-    if thunderbolt_storage_present; then
-        log_event daemon.err \
-            "action=prepare-suspend result=failed reason=thunderbolt-storage-attached"
+        log_event daemon.err "action=$action result=failed reason=udev-timeout"
+        printf 'Timed out waiting for Thunderbolt device events to finish.\n' >&2
+        restore_session_after_failure
         return 1
     fi
 
@@ -193,39 +213,60 @@ prepare_suspend() {
     if [[ -d /sys/module/thunderbolt_net ]]; then
         if ! modprobe -r thunderbolt_net; then
             log_event daemon.err \
-                "action=prepare-suspend result=failed reason=module-in-use module=thunderbolt_net"
+                "action=$action result=failed reason=module-in-use module=thunderbolt_net"
+            printf 'Thunderbolt networking is still in use.\n' >&2
+            restore_session_after_failure
             return 1
         fi
         log_event daemon.info \
-            "action=prepare-suspend stage=module-removed module=thunderbolt_net"
+            "action=$action stage=module-removed module=thunderbolt_net"
     fi
 
     if thunderbolt_hierarchy_present; then
         # The proven boot helper first requests runtime suspend and then uses
         # the PCI remove interface. PCI core removal invokes the normal remove
         # callbacks for any downstream adapter before removing its bridges.
-        "$POWERDOWN_HELPER"
+        if ! "$POWERDOWN_HELPER"; then
+            log_event daemon.err \
+                "action=$action result=failed reason=powerdown-helper-failed"
+            printf 'The Thunderbolt power-down helper failed.\n' >&2
+            restore_session_after_failure
+            return 1
+        fi
         udevadm settle --timeout=30 || true
     fi
 
     if thunderbolt_hierarchy_present; then
         log_event daemon.err \
-            "action=prepare-suspend result=failed reason=pci-hierarchy-remains"
+            "action=$action result=failed reason=pci-hierarchy-remains"
+        printf 'The Thunderbolt PCI hierarchy could not be fully removed.\n' >&2
+        restore_session_after_failure
         return 1
     fi
 
     if [[ -d /sys/module/thunderbolt ]]; then
         if ! modprobe -r thunderbolt; then
             log_event daemon.err \
-                "action=prepare-suspend result=failed reason=module-in-use module=thunderbolt"
+                "action=$action result=failed reason=module-in-use module=thunderbolt"
+            printf 'The Thunderbolt driver is still in use.\n' >&2
+            restore_session_after_failure
             return 1
         fi
         log_event daemon.info \
-            "action=prepare-suspend stage=module-removed module=thunderbolt"
+            "action=$action stage=module-removed module=thunderbolt"
     fi
 
     log_event daemon.notice \
-        "action=prepare-suspend result=success state=powered-down recovery=reboot"
+        "action=$action result=success state=powered-down reenable=manual"
+}
+
+disable_thunderbolt() {
+    teardown_thunderbolt disable
+    printf 'disabled\n'
+}
+
+prepare_suspend() {
+    teardown_thunderbolt prepare-suspend
 }
 
 case "${1:-}" in
@@ -239,6 +280,13 @@ case "${1:-}" in
         flock 9
         enable_thunderbolt
         ;;
+    disable)
+        require_root
+        install -d -m 0755 "$STATE_DIR"
+        exec 9> "$CONTROL_LOCK"
+        flock 9
+        disable_thunderbolt
+        ;;
     prepare-suspend)
         require_root
         install -d -m 0755 "$STATE_DIR"
@@ -247,7 +295,7 @@ case "${1:-}" in
         prepare_suspend
         ;;
     *)
-        printf 'Usage: %s {status|enable|prepare-suspend}\n' "$0" >&2
+        printf 'Usage: %s {status|enable|disable|prepare-suspend}\n' "$0" >&2
         exit 2
         ;;
 esac

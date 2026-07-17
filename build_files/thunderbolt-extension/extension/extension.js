@@ -35,20 +35,20 @@ class ThunderboltIndicator extends PanelMenu.Button {
         });
         this.menu.addMenuItem(this._statusItem);
 
-        this._actionItem = new PopupMenu.PopupMenuItem(
-            'Enable Thunderbolt until suspend or reboot'
-        );
-        this._actionItem.connect('activate', () => this._enableThunderbolt());
-        this.menu.addMenuItem(this._actionItem);
-
         this._instructionItem = new PopupMenu.PopupMenuItem('', {
             reactive: false,
             can_focus: false,
         });
         this.menu.addMenuItem(this._instructionItem);
 
+        this._actionItem = new PopupMenu.PopupMenuItem(
+            'Enable Thunderbolt until suspend or reboot'
+        );
+        this._actionItem.connect('activate', () => this._toggleThunderbolt());
+        this.menu.addMenuItem(this._actionItem);
+
         this._warningItem = new PopupMenu.PopupMenuItem(
-            'Suspend disconnects Thunderbolt; eject storage first',
+            'Eject Thunderbolt storage before suspend',
             {
                 reactive: false,
                 can_focus: false,
@@ -70,37 +70,53 @@ class ThunderboltIndicator extends PanelMenu.Button {
 
         this._enabled = enabled;
         this._icon.set_style(`color: ${enabled ? ENABLED_COLOR : DISABLED_COLOR};`);
-        this._actionItem.visible = !enabled;
+        this._actionItem.label.text = enabled
+            ? 'Disable Thunderbolt'
+            : 'Enable Thunderbolt until suspend or reboot';
+        this._warningItem.visible = enabled;
 
         if (state === 'active') {
             this._statusItem.label.text = 'Thunderbolt is active until suspend or reboot';
-            this._instructionItem.label.text = 'Thunderbolt controller detected';
+            this._instructionItem.label.text = 'Disable before removing adapter';
             this.accessible_name = 'Thunderbolt active';
         } else if (state === 'armed') {
             this._statusItem.label.text = 'Thunderbolt is ready until suspend or reboot';
-            this._instructionItem.label.text = 'Disconnect and reconnect your Thunderbolt adapter';
+            this._instructionItem.label.text = 'Disable before removing adapter';
             this.accessible_name = 'Thunderbolt ready';
         } else {
             this._statusItem.label.text = 'Thunderbolt is powered down to save power';
-            this._instructionItem.label.text = 'Enable only when you need the port';
+            this._instructionItem.label.text = 'Enable before attaching adapter';
             this.accessible_name = 'Thunderbolt powered down';
         }
     }
 
-    _setBusy(busy) {
+    _setBusy(busy, operation = '') {
         this._busy = busy;
         this._actionItem.setSensitive(!busy);
-        if (busy)
-            this._statusItem.label.text = 'Enabling Thunderbolt…';
+        if (busy) {
+            this._statusItem.label.text = operation === 'disable'
+                ? 'Disabling Thunderbolt…'
+                : 'Enabling Thunderbolt…';
+        }
     }
 
-    _setError(message) {
-        this._enabled = false;
-        this._icon.set_style(`color: ${DISABLED_COLOR};`);
-        this._actionItem.visible = true;
-        this._statusItem.label.text = 'Thunderbolt could not be enabled';
+    _setError(operation, message) {
+        const disabling = operation === 'disable';
+
+        this._enabled = disabling;
+        this._icon.set_style(
+            `color: ${disabling ? ENABLED_COLOR : DISABLED_COLOR};`
+        );
+        this._actionItem.label.text = disabling
+            ? 'Disable Thunderbolt'
+            : 'Enable Thunderbolt until suspend or reboot';
+        this._statusItem.label.text = disabling
+            ? 'Thunderbolt could not be disabled'
+            : 'Thunderbolt could not be enabled';
         this._instructionItem.label.text = message;
-        this.accessible_name = 'Thunderbolt enablement failed';
+        this.accessible_name = disabling
+            ? 'Thunderbolt disablement failed'
+            : 'Thunderbolt enablement failed';
     }
 
     _spawn(argv, callback) {
@@ -143,11 +159,18 @@ class ThunderboltIndicator extends PanelMenu.Button {
         });
     }
 
-    _enableThunderbolt() {
-        if (this._busy || this._enabled)
+    _toggleThunderbolt() {
+        if (this._busy)
             return;
 
-        this._setBusy(true);
+        if (this._enabled)
+            this._disableThunderbolt();
+        else
+            this._enableThunderbolt();
+    }
+
+    _enableThunderbolt() {
+        this._setBusy(true, 'enable');
         this._spawn(['pkexec', CONTROL, 'enable'], (successful, stdout, stderr) => {
             if (this._destroyed)
                 return;
@@ -157,7 +180,26 @@ class ThunderboltIndicator extends PanelMenu.Button {
                 this._setState(stdout === 'armed' ? 'armed' : 'active');
             } else {
                 this._setError(
+                    'enable',
                     stderr || 'The Falcon Ridge controller did not appear.'
+                );
+            }
+        });
+    }
+
+    _disableThunderbolt() {
+        this._setBusy(true, 'disable');
+        this._spawn(['pkexec', CONTROL, 'disable'], (successful, _stdout, stderr) => {
+            if (this._destroyed)
+                return;
+
+            this._setBusy(false);
+            if (successful) {
+                this._setState('disabled');
+            } else {
+                this._setError(
+                    'disable',
+                    stderr || 'The Thunderbolt controller could not be powered down.'
                 );
             }
         });

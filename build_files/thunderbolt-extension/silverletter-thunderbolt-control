@@ -4,15 +4,11 @@ set -euo pipefail
 
 readonly STATE_DIR="/run/silverletter"
 readonly STATE_FILE="${STATE_DIR}/thunderbolt.state"
-readonly SUSPEND_MODULES_FILE="${STATE_DIR}/thunderbolt-suspend.modules"
 readonly CONTROL_LOCK="${STATE_DIR}/thunderbolt-control.lock"
 readonly POWERDOWN_LOCK="/run/tb-powerdown.lock"
 readonly POWERDOWN_HELPER="/usr/libexec/tb-powerdown.sh"
 readonly RUNTIME_RULE_DIR="/run/udev/rules.d"
 readonly POWERDOWN_MASK="${RUNTIME_RULE_DIR}/99-thunderbolt-pm.rules"
-readonly RUNTIME_MODPROBE_DIR="/run/modprobe.d"
-readonly BLACKLIST_MASK="${RUNTIME_MODPROBE_DIR}/thunderbolt-blacklist.conf"
-readonly ROOT_PORT_WAKE="/sys/bus/pci/devices/0000:00:1c.4/power/wakeup"
 readonly LOG_TAG="silverletter-thunderbolt"
 readonly -a TB_DEVICES=(
     07:00.0
@@ -96,123 +92,24 @@ show_status() {
 }
 
 mask_powerdown_rule() {
-    install -d -m 0755 \
-        "$STATE_DIR" \
-        "$RUNTIME_RULE_DIR" \
-        "$RUNTIME_MODPROBE_DIR"
+    install -d -m 0755 "$STATE_DIR" "$RUNTIME_RULE_DIR"
 
-    # Same-named /dev/null links in /run override the image's power-down rule
-    # and module blacklist until manual disable or the next reboot. This keeps
-    # the enabled session available to the explicit resume restore.
+    # A same-named /dev/null link in /run overrides the image's power-down
+    # rule until manual disable, suspend, or reboot.
     ln -sfn /dev/null "$POWERDOWN_MASK"
-    ln -sfn /dev/null "$BLACKLIST_MASK"
 
     udevadm control --reload-rules
     log_event daemon.info \
-        "action=enable stage=runtime-policy-installed lifetime=until-disable-or-reboot"
+        "action=enable stage=powerdown-rule-masked lifetime=until-disable-suspend-or-reboot"
 }
 
 remove_powerdown_mask() {
-    rm -f "$POWERDOWN_MASK" "$BLACKLIST_MASK"
+    rm -f "$POWERDOWN_MASK"
     udevadm control --reload-rules || true
 }
 
-disable_root_port_wake() {
-    # 00:1c.4 exclusively owns the Thunderbolt hierarchy on this platform.
-    # Disabling its PCI wake capability is precautionary and must not make
-    # suspend fail if the firmware does not expose a writable wake attribute.
-    if [[ ! -w "$ROOT_PORT_WAKE" ]]; then
-        log_event daemon.warning \
-            "action=prepare-suspend stage=root-port-wake result=skipped path=$ROOT_PORT_WAKE"
-        return 0
-    fi
-
-    if printf 'disabled\n' > "$ROOT_PORT_WAKE"; then
-        log_event daemon.info \
-            "action=prepare-suspend stage=root-port-wake state=disabled device=0000:00:1c.4"
-    else
-        log_event daemon.warning \
-            "action=prepare-suspend stage=root-port-wake result=failed device=0000:00:1c.4"
-    fi
-}
-
-tg3_on_thunderbolt() {
-    local device_path resolved_path
-
-    for device_path in /sys/bus/pci/drivers/tg3/0000:*; do
-        [[ -e "$device_path" ]] || continue
-        resolved_path="$(readlink -f "$device_path")"
-        if [[ "$resolved_path" == *"/0000:00:1c.4/"* ]]; then
-            return 0
-        fi
-    done
-
-    return 1
-}
-
-record_suspend_module() {
-    printf '%s\n' "$1" >> "$SUSPEND_MODULES_FILE"
-}
-
-suspend_module_recorded() {
-    local requested_module="$1"
-    local recorded_module
-
-    [[ -f "$SUSPEND_MODULES_FILE" ]] || return 1
-
-    while IFS= read -r recorded_module; do
-        if [[ "$recorded_module" == "$requested_module" ]]; then
-            return 0
-        fi
-    done < "$SUSPEND_MODULES_FILE"
-
-    return 1
-}
-
-restore_suspended_modules() {
-    local action="$1"
-    local result=0
-
-    # Restore in the reverse of the suspend order: core transport first,
-    # followed by optional protocol and endpoint drivers.
-    if session_enabled; then
-        if modprobe thunderbolt; then
-            log_event daemon.info \
-                "action=$action stage=module-loaded module=thunderbolt"
-        else
-            log_event daemon.err \
-                "action=$action stage=module-load-failed module=thunderbolt"
-            result=1
-        fi
-    fi
-
-    if suspend_module_recorded thunderbolt_net; then
-        if modprobe thunderbolt_net; then
-            log_event daemon.info \
-                "action=$action stage=module-loaded module=thunderbolt_net"
-        else
-            log_event daemon.err \
-                "action=$action stage=module-load-failed module=thunderbolt_net"
-            result=1
-        fi
-    fi
-
-    if suspend_module_recorded tg3; then
-        if modprobe tg3; then
-            log_event daemon.info \
-                "action=$action stage=module-loaded module=tg3"
-        else
-            log_event daemon.err \
-                "action=$action stage=module-load-failed module=tg3"
-            result=1
-        fi
-    fi
-
-    return "$result"
-}
-
 enable_thunderbolt() {
-    local attempt powerdown_lock_acquired=0
+    local powerdown_lock_acquired=0
 
     rollback_enable() {
         local status=$?
@@ -229,9 +126,8 @@ enable_thunderbolt() {
     }
     trap rollback_enable ERR
 
-    rm -f "$SUSPEND_MODULES_FILE"
     log_event daemon.notice \
-        "action=enable stage=start lifetime=until-disable-or-reboot"
+        "action=enable stage=start lifetime=until-disable-suspend-or-reboot"
     mask_powerdown_rule
 
     # Let every udev job that was queued under the image rule finish. The
@@ -243,7 +139,8 @@ enable_thunderbolt() {
     fi
     log_event daemon.info "action=enable stage=boot-powerdown-settled"
 
-    # Serialize with the helper as a final guard before PCI rescan.
+    # Serialize with the helper so the driver is not loaded while an earlier
+    # power-down operation is still removing the PCI hierarchy.
     exec 8> "$POWERDOWN_LOCK"
     flock 8
     powerdown_lock_acquired=1
@@ -252,26 +149,15 @@ enable_thunderbolt() {
     modprobe thunderbolt
     log_event daemon.info "action=enable stage=module-loaded module=thunderbolt"
 
-    printf '1\n' > /sys/bus/pci/rescan
-    log_event daemon.info "action=enable stage=pci-rescan"
-    udevadm settle --timeout=10 || true
-
-    for attempt in {1..20}; do
-        if nhi_present; then
-            break
-        fi
-        sleep 0.5
-    done
-
     if ! nhi_present; then
-        # Falcon Ridge may not wake from its removed low-power state until it
-        # sees a new physical hot-plug edge. Keep this boot-scoped session
-        # armed and let a disconnect/reconnect perform the safe hardware wake.
+        # The removed Falcon Ridge hierarchy is rediscovered by a physical
+        # hot-plug edge. Keep the session armed and let attaching the adapter
+        # perform normal PCIe hotplug enumeration.
         flock -u 8
         powerdown_lock_acquired=0
         trap - ERR
         log_event daemon.notice \
-            "action=enable result=success state=armed controller=absent reconnect_required=yes lifetime=until-disable-or-reboot"
+            "action=enable result=success state=armed controller=absent attachment_required=yes lifetime=until-disable-suspend-or-reboot"
         notify_state armed
         printf 'armed\n'
         return 0
@@ -281,7 +167,7 @@ enable_thunderbolt() {
     powerdown_lock_acquired=0
     trap - ERR
     log_event daemon.notice \
-        "action=enable result=success state=active controller=0000:07:00.0 lifetime=until-disable-or-reboot"
+        "action=enable result=success state=active controller=0000:07:00.0 lifetime=until-disable-suspend-or-reboot"
     notify_state active
     printf 'active\n'
 }
@@ -296,15 +182,11 @@ teardown_thunderbolt() {
 
     restore_session_after_failure() {
         if (( was_enabled )); then
-            install -d -m 0755 \
-                "$STATE_DIR" \
-                "$RUNTIME_RULE_DIR" \
-                "$RUNTIME_MODPROBE_DIR"
+            install -d -m 0755 "$STATE_DIR" "$RUNTIME_RULE_DIR"
             ln -sfn /dev/null "$POWERDOWN_MASK"
-            ln -sfn /dev/null "$BLACKLIST_MASK"
             udevadm control --reload-rules || true
             log_event daemon.warning \
-                "action=$action stage=runtime-policy-restored reason=teardown-failed"
+                "action=$action stage=powerdown-rule-remasked reason=teardown-failed"
         fi
     }
 
@@ -324,12 +206,11 @@ teardown_thunderbolt() {
         return 1
     fi
 
-    # Full power-down restores the image's default power-down rule and module
-    # blacklist before touching the PCI hierarchy.
+    # Full power-down restores the image's default power-down rule before
+    # touching the PCI hierarchy.
     remove_powerdown_mask
-    rm -f "$SUSPEND_MODULES_FILE"
     log_event daemon.info \
-        "action=$action stage=default-policy-restored"
+        "action=$action stage=powerdown-rule-restored"
 
     if ! udevadm settle --timeout=30; then
         log_event daemon.err "action=$action result=failed reason=udev-timeout"
@@ -397,153 +278,10 @@ disable_thunderbolt() {
 }
 
 prepare_suspend() {
-    local nhi_was_present=0
-    local rollback_required=0
-
-    disable_root_port_wake
-
-    if ! session_enabled; then
-        rm -f "$SUSPEND_MODULES_FILE"
-        log_event daemon.info \
-            "action=prepare-suspend stage=default-powerdown reason=session-disabled"
-        teardown_thunderbolt prepare-suspend
-        return
-    fi
-
-    log_event daemon.notice \
-        "action=prepare-suspend stage=start strategy=drivers-only"
-
-    if nhi_present; then
-        nhi_was_present=1
-    fi
-
-    # Storage must be ejected before its driver and transport disappear.
-    if thunderbolt_storage_present; then
-        log_event daemon.err \
-            "action=prepare-suspend result=failed reason=thunderbolt-storage-attached"
-        printf 'Eject or disconnect Thunderbolt storage before suspending.\n' >&2
-        return 1
-    fi
-
-    if ! udevadm settle --timeout=30; then
-        log_event daemon.err \
-            "action=prepare-suspend result=failed reason=udev-timeout"
-        printf 'Timed out waiting for Thunderbolt device events to finish.\n' >&2
-        return 1
-    fi
-
-    : > "$SUSPEND_MODULES_FILE"
-    chmod 0600 "$SUSPEND_MODULES_FILE"
-
-    # Quiesce drivers from the downstream endpoint towards the NHI. Unlike
-    # manual disable, this intentionally leaves every PCI device enumerated.
-    if [[ -d /sys/module/tg3 ]] && tg3_on_thunderbolt; then
-        if ! modprobe -r tg3; then
-            log_event daemon.err \
-                "action=prepare-suspend result=failed reason=module-in-use module=tg3"
-            printf 'The Thunderbolt Ethernet driver is still in use.\n' >&2
-            rm -f "$SUSPEND_MODULES_FILE"
-            return 1
-        fi
-        record_suspend_module tg3
-        rollback_required=1
-        log_event daemon.info \
-            "action=prepare-suspend stage=module-removed module=tg3"
-    fi
-
-    if [[ -d /sys/module/thunderbolt_net ]]; then
-        if ! modprobe -r thunderbolt_net; then
-            log_event daemon.err \
-                "action=prepare-suspend result=failed reason=module-in-use module=thunderbolt_net"
-            printf 'Thunderbolt networking is still in use.\n' >&2
-            if (( rollback_required )); then
-                restore_suspended_modules prepare-suspend-rollback || true
-            fi
-            rm -f "$SUSPEND_MODULES_FILE"
-            return 1
-        fi
-        record_suspend_module thunderbolt_net
-        rollback_required=1
-        log_event daemon.info \
-            "action=prepare-suspend stage=module-removed module=thunderbolt_net"
-    fi
-
-    if [[ -d /sys/module/thunderbolt ]]; then
-        if ! modprobe -r thunderbolt; then
-            log_event daemon.err \
-                "action=prepare-suspend result=failed reason=module-in-use module=thunderbolt"
-            printf 'The Thunderbolt driver is still in use.\n' >&2
-            if (( rollback_required )); then
-                restore_suspended_modules prepare-suspend-rollback || true
-            fi
-            rm -f "$SUSPEND_MODULES_FILE"
-            return 1
-        fi
-        record_suspend_module thunderbolt
-        log_event daemon.info \
-            "action=prepare-suspend stage=module-removed module=thunderbolt"
-    fi
-
-    if (( nhi_was_present )) && ! nhi_present; then
-        log_event daemon.err \
-            "action=prepare-suspend result=failed reason=nhi-disappeared"
-        printf 'The Thunderbolt controller disappeared while unloading its driver.\n' >&2
-        restore_suspended_modules prepare-suspend-rollback || true
-        rm -f "$SUSPEND_MODULES_FILE"
-        return 1
-    fi
-
-    log_event daemon.notice \
-        "action=prepare-suspend result=success state=armed pci_hierarchy=retained"
-    notify_state armed
-}
-
-resume_thunderbolt() {
-    local state
-
-    log_event daemon.notice "action=resume stage=start"
-
-    if ! session_enabled; then
-        rm -f "$SUSPEND_MODULES_FILE"
-        log_event daemon.notice \
-            "action=resume result=skipped reason=session-disabled"
-        notify_state disabled
-        return 0
-    fi
-
-    # Reconfirm both boot-scoped masks before driver registration. This keeps
-    # the default power-down rule and module blacklist inactive until manual
-    # disable or reboot.
-    install -d -m 0755 "$RUNTIME_RULE_DIR" "$RUNTIME_MODPROBE_DIR"
-    ln -sfn /dev/null "$POWERDOWN_MASK"
-    ln -sfn /dev/null "$BLACKLIST_MASK"
-    udevadm control --reload-rules
-    log_event daemon.info \
-        "action=resume stage=runtime-policy-confirmed"
-
-    if ! restore_suspended_modules resume; then
-        if nhi_present && [[ -d /sys/module/thunderbolt ]]; then
-            notify_state active
-        else
-            notify_state armed
-        fi
-        log_event daemon.err \
-            "action=resume result=failed reason=module-restore-failed"
-        return 1
-    fi
-
-    udevadm settle --timeout=30 || true
-    rm -f "$SUSPEND_MODULES_FILE"
-
-    if nhi_present && [[ -d /sys/module/thunderbolt ]]; then
-        state=active
-    else
-        state=armed
-    fi
-
-    log_event daemon.notice \
-        "action=resume result=success state=$state pci_hierarchy=retained"
-    notify_state "$state"
+    # Use the same proven, one-way teardown as the manual Disable action.
+    # Resume deliberately performs no Thunderbolt recovery; the user must
+    # explicitly enable the controller again after the system wakes.
+    teardown_thunderbolt prepare-suspend
 }
 
 case "${1:-}" in
@@ -571,15 +309,8 @@ case "${1:-}" in
         flock 9
         prepare_suspend
         ;;
-    resume)
-        require_root
-        install -d -m 0755 "$STATE_DIR"
-        exec 9> "$CONTROL_LOCK"
-        flock 9
-        resume_thunderbolt
-        ;;
     *)
-        printf 'Usage: %s {status|enable|disable|prepare-suspend|resume}\n' "$0" >&2
+        printf 'Usage: %s {status|enable|disable|prepare-suspend}\n' "$0" >&2
         exit 2
         ;;
 esac

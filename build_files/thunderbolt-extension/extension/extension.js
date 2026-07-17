@@ -105,7 +105,7 @@ class ThunderboltIndicator extends PanelMenu.Button {
             this._instructionItem.label.text = 'Disable before removing adapter';
             this.accessible_name = 'Thunderbolt active';
         } else if (state === 'armed') {
-            this._statusItem.label.text = 'Thunderbolt is ready until disabled or reboot';
+            this._statusItem.label.text = 'Thunderbolt is ready';
             this._instructionItem.label.text = 'Disable before removing adapter';
             this.accessible_name = 'Thunderbolt ready';
         } else {

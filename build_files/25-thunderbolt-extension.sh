@@ -21,9 +21,9 @@ install -Dm644 \
     /ctx/thunderbolt-extension/io.github.networkoctopus.silverletter.thunderbolt.policy \
     /usr/share/polkit-1/actions/io.github.networkoctopus.silverletter.thunderbolt.policy
 
-# Do not carry any automatic hotplug activation, disconnect, or debug machinery
-# from earlier experimental revisions. The sleep unit only unloads drivers
-# before suspend and reloads them after resume; manual disable owns PCI removal.
+# Do not carry any automatic hotplug activation, disconnect, debug, or resume
+# machinery from earlier experimental revisions. The sleep unit performs the
+# same one-way, full teardown as the manual Disable action.
 systemctl disable \
     silverletter-thunderbolt-sleep.service \
     silverletter-thunderbolt-hotplug.service \

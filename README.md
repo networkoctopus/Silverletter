@@ -24,7 +24,7 @@ At 50% display brightness with Wi-Fi enabled and no apps open, my machine draws 
 - [mbpfan](https://github.com/linux-on-mac/mbpfan) for MacBook fan control
 - [uupd](https://github.com/ublue-os/uupd) automatic image and Flatpak updates
 - GNOME extensions installed and enabled system-wide: [AppIndicator and KStatusNotifierItem Support](https://extensions.gnome.org/extension/615/appindicator-support/), [Xremap](https://extensions.gnome.org/extension/5060/xremap/), [Vitals](https://extensions.gnome.org/extension/1460/vitals/), [User Themes](https://extensions.gnome.org/extension/19/user-themes/), [Dash to Dock](https://extensions.gnome.org/extension/307/dash-to-dock/), and the [uupd Indicator](https://github.com/Vyachean/uupd-indicator) with restart-required notifications
-- A top-bar indicator that can manually arm experimental Thunderbolt support until the next reboot
+- A top-bar indicator that can manually enable and disable experimental Thunderbolt support
 - [WhiteSur GTK, Shell, and GDM styling](https://github.com/vinceliuice/WhiteSur-gtk-theme), selectable [WhiteSur icons](https://github.com/vinceliuice/WhiteSur-icon-theme), [WhiteSur cursors](https://github.com/vinceliuice/WhiteSur-cursors), and [MacTahoe icons and cursors](https://github.com/vinceliuice/MacTahoe-icon-theme), optional [MacTahoe Firefox CSS](https://github.com/vinceliuice/MacTahoe-gtk-theme), and MacTahoe day/night wallpapers that follow dark mode, with the day image also used by GDM
 
 ## Hardware compatibility
@@ -44,7 +44,7 @@ These closely related Intel-based MacBook Air computers are reasonable candidate
 | `MacBookAir5,1` | 11-inch, Mid 2012 | Earlier related hardware; least certain |
 | `MacBookAir5,2` | 13-inch, Mid 2012 | Earlier related chassis; least certain |
 
-> **Thunderbolt is powered down by default; the GNOME indicator can enable experimental support until the next reboot.** Only the Apple Thunderbolt to Gigabit Ethernet Adapter has been tested, and connected devices may cause system instability or a kernel panic.
+> **Thunderbolt is powered down by default; the GNOME indicator can enable experimental support until it is disabled, suspended, or rebooted.** Only the Apple Thunderbolt to Gigabit Ethernet Adapter has been tested, and connected devices may cause system instability or a kernel panic.
 
 ## Switch from another bootc system
 

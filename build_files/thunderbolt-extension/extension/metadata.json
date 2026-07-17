@@ -4,5 +4,5 @@
   "description": "Manually control the experimental Thunderbolt port.",
   "shell-version": ["45", "46", "47", "48", "49", "50"],
   "url": "https://github.com/networkoctopus/Silverletter",
-  "version": 21
+  "version": 22
 }

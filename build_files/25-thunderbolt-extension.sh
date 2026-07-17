@@ -10,11 +10,16 @@ install -Dm755 /ctx/thunderbolt-extension/silverletter-thunderbolt-control \
     /usr/libexec/silverletter-thunderbolt-control
 
 install -Dm644 \
+    /ctx/thunderbolt-extension/silverletter-thunderbolt-teardown.service \
+    /usr/lib/systemd/system/silverletter-thunderbolt-teardown.service
+
+install -Dm644 \
     /ctx/thunderbolt-extension/io.github.networkoctopus.silverletter.thunderbolt.policy \
     /usr/share/polkit-1/actions/io.github.networkoctopus.silverletter.thunderbolt.policy
 
-# Do not carry any event-driven, disconnect, debug, or sleep machinery from
-# earlier experimental revisions.
+# Do not carry any event-driven, disconnect, debug, or resume machinery from
+# earlier experimental revisions. The teardown unit installed above only
+# performs a one-way, pre-suspend shutdown.
 systemctl disable \
     silverletter-thunderbolt-sleep.service \
     silverletter-thunderbolt-hotplug.service \
@@ -28,6 +33,8 @@ rm -f \
     /usr/lib/systemd/system/silverletter-thunderbolt-hotplug.service \
     /usr/lib/systemd/system/silverletter-thunderbolt-disconnect.service \
     /usr/lib/systemd/system/silverletter-thunderbolt-disconnect.path
+
+systemctl enable silverletter-thunderbolt-teardown.service
 
 for runtime_cmd in flock logger modprobe pkexec udevadm; do
     command -v "$runtime_cmd" >/dev/null

@@ -35,7 +35,9 @@ class ThunderboltIndicator extends PanelMenu.Button {
         });
         this.menu.addMenuItem(this._statusItem);
 
-        this._actionItem = new PopupMenu.PopupMenuItem('Enable Thunderbolt until next reboot');
+        this._actionItem = new PopupMenu.PopupMenuItem(
+            'Enable Thunderbolt until suspend or reboot'
+        );
         this._actionItem.connect('activate', () => this._enableThunderbolt());
         this.menu.addMenuItem(this._actionItem);
 
@@ -46,7 +48,7 @@ class ThunderboltIndicator extends PanelMenu.Button {
         this.menu.addMenuItem(this._instructionItem);
 
         this._warningItem = new PopupMenu.PopupMenuItem(
-            'Experimental: attached devices may cause system instability',
+            'Suspend disconnects Thunderbolt; eject storage first',
             {
                 reactive: false,
                 can_focus: false,
@@ -71,11 +73,11 @@ class ThunderboltIndicator extends PanelMenu.Button {
         this._actionItem.visible = !enabled;
 
         if (state === 'active') {
-            this._statusItem.label.text = 'Thunderbolt is active until the next reboot';
+            this._statusItem.label.text = 'Thunderbolt is active until suspend or reboot';
             this._instructionItem.label.text = 'Thunderbolt controller detected';
             this.accessible_name = 'Thunderbolt active';
         } else if (state === 'armed') {
-            this._statusItem.label.text = 'Thunderbolt is ready until the next reboot';
+            this._statusItem.label.text = 'Thunderbolt is ready until suspend or reboot';
             this._instructionItem.label.text = 'Disconnect and reconnect your Thunderbolt adapter';
             this.accessible_name = 'Thunderbolt ready';
         } else {

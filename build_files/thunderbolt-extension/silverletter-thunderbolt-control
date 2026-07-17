@@ -9,6 +9,15 @@ readonly POWERDOWN_HELPER="/usr/libexec/tb-powerdown.sh"
 readonly RUNTIME_RULE_DIR="/run/udev/rules.d"
 readonly POWERDOWN_MASK="${RUNTIME_RULE_DIR}/99-thunderbolt-pm.rules"
 readonly LOG_TAG="silverletter-thunderbolt"
+readonly -a TB_DEVICES=(
+    07:00.0
+    06:06.0
+    06:05.0
+    06:04.0
+    06:03.0
+    06:00.0
+    05:00.0
+)
 
 log_event() {
     local priority="$1"
@@ -25,6 +34,32 @@ require_root() {
 
 nhi_present() {
     [[ -e /sys/bus/pci/devices/0000:07:00.0 ]]
+}
+
+thunderbolt_hierarchy_present() {
+    local device
+
+    for device in "${TB_DEVICES[@]}"; do
+        if [[ -e "/sys/bus/pci/devices/0000:$device" ]]; then
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+thunderbolt_storage_present() {
+    local block_path device_path
+
+    for block_path in /sys/class/block/*; do
+        [[ -e "$block_path" ]] || continue
+        device_path="$(readlink -f "$block_path")"
+        if [[ "$device_path" == *"/0000:05:00.0/"* ]]; then
+            return 0
+        fi
+    done
+
+    return 1
 }
 
 session_enabled() {
@@ -130,6 +165,69 @@ enable_thunderbolt() {
     printf 'active\n'
 }
 
+prepare_suspend() {
+    log_event daemon.notice "action=prepare-suspend stage=start"
+
+    # Re-enable the image's normal udev power-down policy before touching the
+    # PCI hierarchy. This also makes the teardown permanent until the next
+    # explicit enable request.
+    remove_powerdown_mask
+    log_event daemon.info "action=prepare-suspend stage=powerdown-rule-restored"
+
+    if ! udevadm settle --timeout=30; then
+        log_event daemon.err "action=prepare-suspend result=failed reason=udev-timeout"
+        return 1
+    fi
+
+    # Arbitrary mounted storage cannot be safely unmounted from a system sleep
+    # hook. Refuse this suspend attempt instead of hot-removing a filesystem;
+    # after the user ejects or disconnects the drive, suspend can be retried.
+    if thunderbolt_storage_present; then
+        log_event daemon.err \
+            "action=prepare-suspend result=failed reason=thunderbolt-storage-attached"
+        return 1
+    fi
+
+    # Remove the optional networking layer first so that it cannot retain the
+    # core Thunderbolt module during PCI hot-removal.
+    if [[ -d /sys/module/thunderbolt_net ]]; then
+        if ! modprobe -r thunderbolt_net; then
+            log_event daemon.err \
+                "action=prepare-suspend result=failed reason=module-in-use module=thunderbolt_net"
+            return 1
+        fi
+        log_event daemon.info \
+            "action=prepare-suspend stage=module-removed module=thunderbolt_net"
+    fi
+
+    if thunderbolt_hierarchy_present; then
+        # The proven boot helper first requests runtime suspend and then uses
+        # the PCI remove interface. PCI core removal invokes the normal remove
+        # callbacks for any downstream adapter before removing its bridges.
+        "$POWERDOWN_HELPER"
+        udevadm settle --timeout=30 || true
+    fi
+
+    if thunderbolt_hierarchy_present; then
+        log_event daemon.err \
+            "action=prepare-suspend result=failed reason=pci-hierarchy-remains"
+        return 1
+    fi
+
+    if [[ -d /sys/module/thunderbolt ]]; then
+        if ! modprobe -r thunderbolt; then
+            log_event daemon.err \
+                "action=prepare-suspend result=failed reason=module-in-use module=thunderbolt"
+            return 1
+        fi
+        log_event daemon.info \
+            "action=prepare-suspend stage=module-removed module=thunderbolt"
+    fi
+
+    log_event daemon.notice \
+        "action=prepare-suspend result=success state=powered-down recovery=reboot"
+}
+
 case "${1:-}" in
     status)
         show_status
@@ -141,8 +239,15 @@ case "${1:-}" in
         flock 9
         enable_thunderbolt
         ;;
+    prepare-suspend)
+        require_root
+        install -d -m 0755 "$STATE_DIR"
+        exec 9> "$CONTROL_LOCK"
+        flock 9
+        prepare_suspend
+        ;;
     *)
-        printf 'Usage: %s {status|enable}\n' "$0" >&2
+        printf 'Usage: %s {status|enable|prepare-suspend}\n' "$0" >&2
         exit 2
         ;;
 esac

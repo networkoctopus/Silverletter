@@ -1,8 +1,8 @@
 {
   "uuid": "thunderbolt@silverletter.local",
   "name": "Silverletter Thunderbolt",
-  "description": "Manually enable the experimental Thunderbolt port until the next reboot.",
+  "description": "Manually enable the experimental Thunderbolt port until suspend or reboot.",
   "shell-version": ["45", "46", "47", "48", "49", "50"],
   "url": "https://github.com/networkoctopus/Silverletter",
-  "version": 12
+  "version": 13
 }

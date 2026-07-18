@@ -5,9 +5,9 @@
 
 **A love letter to 'old' hardware, delivered as a bootc image**
 
-Silverletter is a bootable container, based on Fedora Silverblue. It is intended for selected Intel-based MacBook Airs and currently tracks [Fedora 44](https://fedoraproject.org).
+Silverletter is a bootable container made specifically for the Intel MacBook Air, based on [Fedora Silverblue](https://fedoraproject.org/atomic-desktops/silverblue/). It currently tracks [Fedora 44](https://fedoraproject.org).
 
-Instead of relegating my 11-year-old, 11-inch laptop to the gap in my couch - I wanted a reliable, modern and secure system out of the box, with the necessary drivers included, kept close to its upstream base, and carefully tuned to **maximise battery life***.
+Instead of relegating my 11-year-old, 11-inch laptop to the gap in my couch - I wanted a reliable, modern and secure system with all necessary drivers included, kept close to its upstream base, and carefully tuned to **maximise battery life***.
 
 This began as a playground for bootc using the excellent [Universal Blue image-template](https://github.com/ublue-os/image-template). It became my daily driver in early 2026 and eventually felt worth sharing.
 
@@ -47,11 +47,11 @@ These related Intel-based MacBook Air computers are reasonable candidates, but a
 
 ## *Battery
 
-One of my goals was to maximise battery life - this image includes a number of optimisations to help in this regard. 
+One of my primary goals was to maximise battery life - this image includes a number of optimisations to help in this regard. 
 My 11" machine draws around **4–4.5 W** which equates to ~10 hours of battery life (50% display brightness with Wi-Fi enabled and no apps running).  
 With auto-brightness off and brightness at minimum, power usage diops to **3.3–3.5 W**  (Not that I use my machine this way, just for reference)
 
-One of the unnecessary power draws on this hardware is [unused Thunderbolt controllers](https://wiki.archlinux.org/title/Mac/Troubleshooting#Disabling_Thunderbolt)
+An unnecessary power draw on this hardware is [unused Thunderbolt controllers](https://wiki.archlinux.org/title/Mac/Troubleshooting#Disabling_Thunderbolt)
 
 > [!IMPORTANT]
 > **Thunderbolt is intentionally disabled by default to save power.** If you rely on that port on the daily, this image is probably not for you. I hardly use mine, so the multiple watts—and hours—of power savings are worth it.
@@ -62,7 +62,7 @@ This re-enablement has been tested with an Apple Thunderbolt to Gigabit Ethernet
 
 ## Power saving audit
 
-There is an included power-audit script which can check if all power saving features are enabled or not
+There is an included power-audit script which can check if all power saving features are enabled or not:
 
 ```bash
 sudo power-audit.sh

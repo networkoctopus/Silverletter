@@ -28,6 +28,8 @@ This began as a playground for bootc using the excellent [Universal Blue image-t
 - macOS inspired desktop and Firefox theming from [WhiteSur GTK, Shell, and GDM styling](https://github.com/vinceliuice/WhiteSur-gtk-theme) 
 - Setup app that adds/removes these items and can restore the default GNOME Flatpak apps from [Flathub](https://flathub.org/) aswell as replace existing ones with Flathub counterparts (The upstream image exchanges the Fedora flatpak repo for Flathub's) 
 
+![Silverletter screenshot](assets/screenshot01.jpg)
+
 ## Hardware compatibility
 
 The image is developed and daily-tested on a **2015 11" MacBook Air (`MacBookAir7,1`)**. Its initramfs and power configuration are intentionally tailored to this generation.

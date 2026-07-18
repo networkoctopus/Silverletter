@@ -5,15 +5,15 @@
 
 **A love letter to 'old' hardware, delivered as a bootc image**
 
-Silverletter is a bootable container, based on [Universal Blue's `silverblue-main`](https://github.com/ublue-os/main/pkgs/container/silverblue-main). It is intended for selected Intel-based MacBook Air computers and currently tracks [Fedora 44](https://fedoraproject.org).
+Silverletter is a bootable container, based on Fedora Silverblue. It is intended for selected Intel-based MacBook Airs and currently tracks [Fedora 44](https://fedoraproject.org).
 
-Instead of relegating my 11-year-old, 11-inch laptop to the gap in my couch - I wanted a reliable, modern/secure out-of-box system with the necessary drivers included, kept close to its upstream base, and carefully tuned to **maximise battery life***.
+Instead of relegating my 11-year-old, 11-inch laptop to the gap in my couch - I wanted a reliable, modern and secure system out of the box, with the necessary drivers included, kept close to its upstream base, and carefully tuned to **maximise battery life***.
 
 This began as a playground for bootc using the excellent [Universal Blue image-template](https://github.com/ublue-os/image-template). It became my daily driver in early 2026 and eventually felt worth sharing.
 
 ## What's in this image - credits to the maintainers of these projects
 
-- A mostly stock Fedora GNOME experience on Universal Blue's [`silverblue-main`](https://github.com/ublue-os/main)
+- A mostly stock Fedora Silverblue experience using Universal Blue's [`silverblue-main`](https://github.com/ublue-os/main) base image
 - Broadcom Wi-Fi from [Universal Blue akmods](https://github.com/ublue-os/akmods), plus the [FaceTime HD driver](https://github.com/patjak/facetimehd) and [firmware extractor](https://github.com/patjak/facetimehd-firmware)
 - Thunderbolt power tuning*, PCIe ASPM tuning, firmware compatibility tweaks, [PowerTOP](https://github.com/fenrus75/powertop) tuning, Wi-Fi power saving enable by default
 - A smaller, hardware-focused initramfs that reduced boot time from ~40 to ~25 seconds on my machine. The initramfs in [`silverblue-main`](https://github.com/ublue-os/main) is ~230MB+ whereas this image's initramfs is ~75MB. Since updates occur on restart, I figured the faster boot was worth pursuing.
@@ -26,7 +26,7 @@ This began as a playground for bootc using the excellent [Universal Blue image-t
 
 - macOS style keyboard remapping provided by [Toshy](https://github.com/RedBearAK/Toshy)
 - macOS inspired desktop and Firefox theming from [WhiteSur GTK, Shell, and GDM styling](https://github.com/vinceliuice/WhiteSur-gtk-theme) 
-- Setup app that adds/removes these items and can restore the default GNOME Flatpak apps from [Flathub](https://flathub.org/) aswell as replace existing ones with Flathub counterparts (The upstream image replaces the Fedora flatpak repo for Flathub) 
+- Setup app that adds/removes these items and can restore the default GNOME Flatpak apps from [Flathub](https://flathub.org/) aswell as replace existing ones with Flathub counterparts (The upstream image exchanges the Fedora flatpak repo for Flathub's) 
 
 ## Hardware compatibility
 
@@ -34,7 +34,7 @@ The image is developed and daily-tested on a **2015 11" MacBook Air (`MacBookAir
 
 Do not assume that other MacBook or MacBook Pro computers are compatible. The trimmed initramfs omits drivers and storage features this specific machine does not need.
 
-These closely related Intel-based MacBook Air computers are reasonable candidates, but are **untested unless stated otherwise**:
+These related Intel-based MacBook Air computers are reasonable candidates, but are **untested unless stated otherwise**:
 
 | Model identifier | Apple model | Confidence |
 | --- | --- | --- |
@@ -44,7 +44,6 @@ These closely related Intel-based MacBook Air computers are reasonable candidate
 | `MacBookAir6,2` | 13-inch, Mid 2013 or Early 2014 | Similar generation; untested |
 | `MacBookAir5,1` | 11-inch, Mid 2012 | Earlier related hardware; least certain |
 | `MacBookAir5,2` | 13-inch, Mid 2012 | Earlier related chassis; least certain |
-
 
 ## *Battery
 
@@ -111,7 +110,7 @@ Note: GitHub requires you to be signed in to download workflow artifacts.
 
 The `latest` image is rebuilt after pushes and **twice weekly**, every Wednesday and Sunday. 
 
-`uupd` checks for and stages operating-system and Flatpak updates automatically. The panel indicator shows update activity and tells you when a reboot is needed to enter the staged deployment. GNOME Software updates are disabled because `uupd` handles them.
+`uupd` checks for and stages system and Flatpak updates automatically. The panel indicator shows update activity and tells you when a reboot is needed to enter the staged deployment. GNOME Software updates are disabled because `uupd` handles them.
 
 
 ## Disclaimer

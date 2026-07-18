@@ -3,6 +3,7 @@ tools:
   - powertop
   - intel-gpu-tools
   - telnet
+  - fastfetch
 
 # Toshy native dependencies
 toshy_deps:

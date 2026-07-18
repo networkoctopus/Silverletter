@@ -21,5 +21,8 @@ RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     /ctx/50-updates.sh && \
     /ctx/99-cleanup.sh
 
+### Make update-m1n1 compatible with OSTree-normalized mtimes
+RUN sed -i 's|^gzip -c "$U_BOOT"|gzip -n -c "$U_BOOT"|' /usr/bin/update-m1n1 && grep -Fqx 'gzip -n -c "$U_BOOT" >>"${TARGET}.new"' /usr/bin/update-m1n1
+
 ### LINTING
 RUN bootc container lint

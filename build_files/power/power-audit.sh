@@ -74,7 +74,7 @@ if [[ $TB_FEATURE_INSTALLED -eq 1 ]] && grep -q 'pci=hpbussize=8' /proc/cmdline;
 elif [[ $TB_FEATURE_INSTALLED -eq 1 ]]; then
     fail "Thunderbolt control is installed but pci=hpbussize=8 is NOT in /proc/cmdline"
 elif grep -q 'pci=hpbussize=8' /proc/cmdline; then
-    warn "pci=hpbussize=8 is active although the optional Thunderbolt control is not installed"
+    warn "pci=hpbussize=8 is active although Thunderbolt control is not installed"
 else
     info "Optional Thunderbolt hot-plug bus reservation is not installed"
 fi
@@ -101,7 +101,7 @@ header "Config Files"
 FILES=(
     "/usr/lib/modprobe.d/thunderbolt-blacklist.conf"
     "/usr/lib/udev/rules.d/99-thunderbolt-pm.rules"
-    "/usr/lib/systemd/system/silverletter-thunderbolt-powerdown.service"
+    "/usr/libexec/tb-powerdown.sh"
     "/usr/lib/NetworkManager/conf.d/default-wifi-powersave-on.conf"
     "/usr/lib/systemd/system/powertop.service"
     "/usr/lib/systemd/system/aspm-tune.service"
@@ -112,9 +112,7 @@ FILES=(
 if [[ $TB_FEATURE_INSTALLED -eq 1 ]]; then
     FILES+=(
         "/usr/libexec/silverletter-thunderbolt-control"
-        "/usr/lib/systemd/system/silverletter-thunderbolt-sleep.service"
-        "/usr/lib/systemd/system/silverletter-thunderbolt-hotplug.service"
-        "/usr/lib/tmpfiles.d/silverletter-thunderbolt.conf"
+        "/usr/share/polkit-1/actions/io.github.networkoctopus.silverletter.thunderbolt.policy"
         "/usr/share/gnome-shell/extensions/thunderbolt@silverletter.local/extension.js"
     )
 fi
@@ -131,42 +129,57 @@ done
 header "Thunderbolt"
 
 TB_ENABLED=0
-if [[ -e /run/silverletter/thunderbolt-enabled ]]; then
+TB_ACTIVE=0
+if [[ -L /run/udev/rules.d/99-thunderbolt-pm.rules &&
+      "$(readlink /run/udev/rules.d/99-thunderbolt-pm.rules)" == "/dev/null" ]]; then
     TB_ENABLED=1
-    info "Automatic Thunderbolt hotplug session is active"
+    if [[ -e /sys/bus/pci/devices/0000:07:00.0 ]]; then
+        TB_ACTIVE=1
+        warn "Experimental Thunderbolt session is active until reboot"
+    else
+        warn "Experimental Thunderbolt session is armed; reconnect the adapter"
+    fi
+elif [[ -e /sys/bus/pci/devices/0000:07:00.0 ]]; then
+    fail "07:00.0 is present without a manual Thunderbolt session"
+else
+    pass "Thunderbolt is in the default powered-down state"
+fi
+
+if [[ -L /etc/udev/rules.d/99-thunderbolt-pm.rules &&
+      "$(readlink /etc/udev/rules.d/99-thunderbolt-pm.rules)" == "/dev/null" ]]; then
+    fail "Persistent /etc udev mask disables Thunderbolt power-down"
+elif [[ -e /etc/udev/rules.d/99-thunderbolt-pm.rules ||
+        -L /etc/udev/rules.d/99-thunderbolt-pm.rules ]]; then
+    warn "/etc/udev/rules.d/99-thunderbolt-pm.rules overrides the image rule"
+else
+    pass "No persistent /etc override masks the Thunderbolt power-down rule"
 fi
 
 if lsmod | grep -q '^thunderbolt '; then
     if [[ $TB_ENABLED -eq 1 ]]; then
-        pass "thunderbolt module is loaded for the automatic hotplug session"
+        pass "thunderbolt module is loaded for the temporary session"
     else
-        fail "thunderbolt module is LOADED without the hotplug session marker"
+        fail "thunderbolt module is LOADED while the controller is powered down"
     fi
 else
     if [[ $TB_ENABLED -eq 1 ]]; then
-        fail "hotplug session marker exists but thunderbolt module is not loaded"
+        fail "Temporary Thunderbolt session is enabled but the module is not loaded"
     else
         pass "thunderbolt module not loaded"
     fi
 fi
 
 if grep -q 'install thunderbolt /bin/false' /usr/lib/modprobe.d/thunderbolt-blacklist.conf 2>/dev/null; then
-    if [[ $TB_FEATURE_INSTALLED -eq 1 ]]; then
-        fail "Hard block (install thunderbolt /bin/false) prevents hotplug activation"
-    else
-        pass "Hard Thunderbolt module block present"
-    fi
+    pass "Hard Thunderbolt module block present"
 elif grep -q 'blacklist thunderbolt' /usr/lib/modprobe.d/thunderbolt-blacklist.conf 2>/dev/null; then
-    if [[ $TB_FEATURE_INSTALLED -eq 1 ]]; then
-        pass "Soft blacklist present (alias load blocked; hotplug service can load explicitly)"
-    else
-        pass "Soft Thunderbolt module blacklist present"
-    fi
+    pass "Soft Thunderbolt module blacklist present"
 else
     fail "thunderbolt-blacklist.conf missing or empty"
 fi
 
-# Thunderbolt PCIe devices runtime PM
+# The complete hierarchy should be absent while idle. During a temporary
+# session the kernel manages runtime power after the image power-down rule is
+# masked for the remainder of the boot.
 header "Thunderbolt PCIe Runtime PM"
 TB_DEVS=(
     "0000:05:00.0"
@@ -181,15 +194,21 @@ for dev in "${TB_DEVS[@]}"; do
     if [[ -e "/sys/bus/pci/devices/$dev" ]]; then
         ctrl=$(cat /sys/bus/pci/devices/$dev/power/control 2>/dev/null)
         status=$(cat /sys/bus/pci/devices/$dev/power/runtime_status 2>/dev/null)
-        if [[ $TB_ENABLED -eq 0 ]]; then
-            fail "$dev — still present (expected the Thunderbolt hierarchy to be removed)"
-        elif [[ "$ctrl" == "on" ]]; then
-            pass "$dev — control=$ctrl status=$status (hotplug session active)"
+        if [[ $TB_ENABLED -eq 1 ]]; then
+            info "$dev — control=$ctrl status=$status (kernel-managed temporary session)"
         else
-            fail "$dev — control=$ctrl (expected on during hotplug session) status=$status"
+            fail "$dev — still present in the default powered-down state control=$ctrl status=$status"
         fi
     else
-        info "$dev — not present on PCIe bus (expected if TB fully off)"
+        if [[ $TB_ENABLED -eq 1 ]]; then
+            if [[ $TB_ACTIVE -eq 1 ]]; then
+                warn "$dev — not enumerated during the active temporary session"
+            else
+                info "$dev — not enumerated while the session is armed"
+            fi
+        else
+            pass "$dev — not present on PCIe bus"
+        fi
     fi
 done
 
@@ -226,21 +245,15 @@ header "Systemd Services"
 SERVICES=(
     "powertop.service"
     "aspm-tune.service"
-    "silverletter-thunderbolt-powerdown.service"
     #"aspm-tune-resume.service"
 )
-if [[ $TB_FEATURE_INSTALLED -eq 1 ]]; then
-    SERVICES+=("silverletter-thunderbolt-sleep.service")
-fi
 for svc in "${SERVICES[@]}"; do
     enabled=$(systemctl is-enabled "$svc" 2>/dev/null)
     active=$(systemctl is-active "$svc" 2>/dev/null)
 
     if [[ "$enabled" == "enabled" ]]; then
         if [[ "$svc" == "powertop.service" ||
-              "$svc" == "aspm-tune-resume.service" ||
-              "$svc" == "silverletter-thunderbolt-powerdown.service" ||
-              "$svc" == "silverletter-thunderbolt-sleep.service" ]]; then
+              "$svc" == "aspm-tune-resume.service" ]]; then
             # Oneshot service — inactive after successful completion is normal.
             if [[ "$active" == "inactive" || "$active" == "active" ]]; then
                 pass "$svc — enabled (oneshot, currently $active)"
@@ -298,7 +311,8 @@ while IFS= read -r dev; do
     status=$(cat "$dev/power/runtime_status" 2>/dev/null)
     total=$((total+1))
     [[ "$ctrl" == "auto" ]] && auto=$((auto+1))
-    if [[ $TB_ENABLED -eq 1 && "$ctrl" == "on" && "$(readlink -f "$dev")" == *"/0000:05:00.0"* ]]; then
+    if [[ $TB_ENABLED -eq 1 && "$ctrl" == "on" &&
+          "$(readlink -f "$dev")" == *"/0000:05:00.0"* ]]; then
         intentional_on=$((intentional_on+1))
     fi
     [[ "$status" == "suspended" ]] && suspended=$((suspended+1))
@@ -327,8 +341,9 @@ for dev in /sys/bus/pci/devices/*; do
     ctrl=$(cat "$dev/power/control" 2>/dev/null)
     if [[ "$ctrl" != "auto" ]]; then
         name=$(lspci -s "$addr" 2>/dev/null | cut -d' ' -f3-)
-        if [[ $TB_ENABLED -eq 1 && "$ctrl" == "on" && "$(readlink -f "$dev")" == *"/0000:05:00.0"* ]]; then
-            info "  $addr — control=$ctrl — $name (temporary Thunderbolt enable)"
+        if [[ $TB_ENABLED -eq 1 && "$ctrl" == "on" &&
+              "$(readlink -f "$dev")" == *"/0000:05:00.0"* ]]; then
+            info "  $addr — control=$ctrl — $name (Thunderbolt hotplug session)"
         else
             fail "  $addr — control=$ctrl — $name"
         fi

@@ -1,21 +1,42 @@
 #!/bin/bash
-# Privileged backend for automatic Silverletter Thunderbolt power control.
+# Privileged backend for manual, boot-scoped Thunderbolt control.
 set -euo pipefail
 
 readonly STATE_DIR="/run/silverletter"
-readonly STATE_FILE="${STATE_DIR}/thunderbolt-enabled"
-readonly STATE_EVENT_FILE="${STATE_DIR}/thunderbolt-state-changed"
-readonly SUSPEND_FILE="${STATE_DIR}/thunderbolt-suspending"
-readonly LEGACY_RESTART_FILE="${STATE_DIR}/thunderbolt-restart-required"
+readonly STATE_FILE="${STATE_DIR}/thunderbolt.state"
 readonly CONTROL_LOCK="${STATE_DIR}/thunderbolt-control.lock"
 readonly POWERDOWN_LOCK="/run/tb-powerdown.lock"
 readonly POWERDOWN_HELPER="/usr/libexec/tb-powerdown.sh"
+readonly RUNTIME_RULE_DIR="/run/udev/rules.d"
+readonly POWERDOWN_MASK="${RUNTIME_RULE_DIR}/99-thunderbolt-pm.rules"
 readonly LOG_TAG="silverletter-thunderbolt"
+readonly -a TB_DEVICES=(
+    07:00.0
+    06:06.0
+    06:05.0
+    06:04.0
+    06:03.0
+    06:00.0
+    05:00.0
+)
 
 log_event() {
     local priority="$1"
     shift
     logger -p "$priority" -t "$LOG_TAG" -- "$*" || true
+}
+
+notify_state() {
+    local state="$1"
+
+    if ! {
+        install -d -m 0755 "$STATE_DIR" &&
+        printf '%s\n' "$state" > "$STATE_FILE" &&
+        chmod 0644 "$STATE_FILE"
+    }; then
+        log_event daemon.warning \
+            "action=state-notify result=failed requested_state=$state"
+    fi
 }
 
 require_root() {
@@ -25,305 +46,271 @@ require_root() {
     fi
 }
 
-notify_state_change() {
-    install -d -m 0755 "$STATE_DIR"
-    touch "$STATE_EVENT_FILE"
-}
-
-is_falcon_ridge_device() {
-    local path="$1"
-    local vendor device
-
-    [[ -r "${path}/vendor" && -r "${path}/device" ]] || return 1
-    read -r vendor < "${path}/vendor"
-    read -r device < "${path}/device"
-    [[ "$vendor" == "0x8086" && ( "$device" == "0x156a" || "$device" == "0x156b" ) ]]
-}
-
-falcon_ridge_present() {
-    local path
-
-    for path in /sys/bus/pci/devices/*; do
-        if is_falcon_ridge_device "$path"; then
-            return 0
-        fi
-    done
-    return 1
-}
-
 nhi_present() {
-    local path
+    [[ -e /sys/bus/pci/devices/0000:07:00.0 ]]
+}
 
-    for path in /sys/bus/pci/devices/*; do
-        if is_falcon_ridge_device "$path" && [[ $(<"${path}/device") == "0x156a" ]]; then
+thunderbolt_hierarchy_present() {
+    local device
+
+    for device in "${TB_DEVICES[@]}"; do
+        if [[ -e "/sys/bus/pci/devices/0000:$device" ]]; then
             return 0
         fi
     done
+
     return 1
-}
-
-# The built-in Falcon Ridge functions stop at 06:03.0. Anything below that
-# bridge is an external PCIe-tunnelled Thunderbolt device. Matching topology
-# instead of a vendor/device ID supports Ethernet, storage, docks, and other
-# adapters without maintaining an allow-list.
-external_device_present() {
-    local path real_path
-
-    for path in /sys/bus/pci/devices/*; do
-        [[ -e "$path" ]] || continue
-        real_path=$(readlink -f "$path")
-        if [[ "$real_path" == *"/0000:06:03.0/"* ]]; then
-            return 0
-        fi
-    done
-    return 1
-}
-
-thunderbolt_pci_addresses() {
-    local path real_path addresses=""
-
-    for path in /sys/bus/pci/devices/*; do
-        [[ -e "$path" ]] || continue
-        real_path=$(readlink -f "$path")
-        if [[ "$real_path" == *"/0000:05:00.0"* ]]; then
-            addresses+="${addresses:+,}$(basename "$path")"
-        fi
-    done
-    printf '%s' "${addresses:-none}"
-}
-
-log_snapshot() {
-    local stage="$1" marker="absent" module="unloaded" nhi="absent" external="absent" hierarchy="absent"
-
-    [[ -e "$STATE_FILE" ]] && marker="present"
-    lsmod | grep -q '^thunderbolt ' && module="loaded"
-    nhi_present && nhi="present"
-    external_device_present && external="present"
-    falcon_ridge_present && hierarchy="present"
-    log_event daemon.info \
-        "stage=$stage marker=$marker module=$module nhi=$nhi external=$external hierarchy=$hierarchy pci_devices=$(thunderbolt_pci_addresses)"
 }
 
 thunderbolt_storage_present() {
-    local block target
+    local block_path device_path
 
-    for block in /sys/class/block/*; do
-        [[ -e "$block" ]] || continue
-        target=$(readlink -f "$block")
-        if [[ "$target" == *"/0000:05:00.0/"* ]]; then
-            log_event daemon.warning \
-                "action=powerdown safety-check=failed block_device=$(basename "$block")"
+    for block_path in /sys/class/block/*; do
+        [[ -e "$block_path" ]] || continue
+        device_path="$(readlink -f "$block_path")"
+        if [[ "$device_path" == *"/0000:05:00.0/"* ]]; then
             return 0
         fi
     done
+
     return 1
 }
 
+session_enabled() {
+    [[ -L "$POWERDOWN_MASK" &&
+       "$(readlink "$POWERDOWN_MASK")" == "/dev/null" ]]
+}
+
 show_status() {
-    if [[ -e "$STATE_FILE" ]] && external_device_present; then
-        printf 'enabled\n'
-    elif [[ -e "$STATE_FILE" ]]; then
-        printf 'ready\n'
-    elif falcon_ridge_present; then
-        printf 'powerdown-incomplete\n'
-    else
+    if ! session_enabled; then
         printf 'disabled\n'
-    fi
-}
-
-set_thunderbolt_tree_power_on() {
-    local path real_path
-
-    for path in /sys/bus/pci/devices/*; do
-        [[ -e "$path" ]] || continue
-        real_path=$(readlink -f "$path")
-        if [[ "$real_path" == *"/0000:05:00.0"* && -w "${path}/power/control" ]]; then
-            printf 'on\n' > "${path}/power/control"
-            log_event daemon.info \
-                "action=activate stage=runtime-pm device=$(basename "$path") control=on"
-        fi
-    done
-}
-
-# This deliberately does almost no work: it runs directly from udev so the
-# marker reaches an already-running power-down job before that job removes the
-# bridge. Slow work is delegated to the systemd hotplug service.
-claim_hotplug() {
-    require_root
-    install -d -m 0755 "$STATE_DIR"
-
-    if [[ -e "$SUSPEND_FILE" ]]; then
-        log_event daemon.info "action=hotplug-claim result=skipped reason=suspend-in-progress"
-        return 0
-    fi
-
-    rm -f "$LEGACY_RESTART_FILE"
-    if [[ ! -e "$STATE_FILE" ]]; then
-        : > "$STATE_FILE"
-        chmod 0644 "$STATE_FILE"
-        log_event daemon.notice "action=hotplug-claim result=success marker=created"
+    elif nhi_present && [[ -d /sys/module/thunderbolt ]]; then
+        printf 'active\n'
     else
-        log_event daemon.info "action=hotplug-claim result=success marker=already-present"
+        printf 'armed\n'
     fi
-    notify_state_change
 }
 
-# PCI removal does not alter the active session. It only wakes the GNOME
-# indicator so it can report that the external adapter is no longer present.
-notify_hotplug_change() {
-    require_root
-    notify_state_change
+mask_powerdown_rule() {
+    install -d -m 0755 "$STATE_DIR" "$RUNTIME_RULE_DIR"
+
+    # A same-named /dev/null link in /run overrides the image's power-down
+    # rule until manual disable, suspend, or reboot.
+    ln -sfn /dev/null "$POWERDOWN_MASK"
+
+    udevadm control --reload-rules
+    log_event daemon.info \
+        "action=enable stage=powerdown-rule-masked lifetime=until-disable-suspend-or-reboot"
 }
 
-activate_hotplug() {
-    local failed=0
+remove_powerdown_mask() {
+    rm -f "$POWERDOWN_MASK"
+    udevadm control --reload-rules || true
+}
 
-    if [[ -e "$SUSPEND_FILE" || ! -e "$STATE_FILE" ]]; then
-        log_event daemon.info "action=activate result=skipped reason=not-claimed"
-        return 0
+enable_thunderbolt() {
+    local powerdown_lock_acquired=0
+
+    rollback_enable() {
+        local status=$?
+        trap - ERR
+        log_event daemon.err "action=enable result=failed exit_status=$status"
+        remove_powerdown_mask
+        if (( powerdown_lock_acquired )); then
+            flock -u 8 || true
+        fi
+        modprobe -r thunderbolt 2>/dev/null || true
+        "$POWERDOWN_HELPER" || true
+        notify_state disabled
+        exit "$status"
+    }
+    trap rollback_enable ERR
+
+    log_event daemon.notice \
+        "action=enable stage=start lifetime=until-disable-suspend-or-reboot"
+    mask_powerdown_rule
+
+    # Let every udev job that was queued under the image rule finish. The
+    # power-down helper is deliberately not cancellable, so manual activation
+    # always starts from the same fully removed PCI state.
+    if ! udevadm settle --timeout=30; then
+        printf 'Timed out waiting for the boot Thunderbolt power-down to finish.\n' >&2
+        return 1
     fi
+    log_event daemon.info "action=enable stage=boot-powerdown-settled"
 
-    log_event daemon.notice "action=activate stage=start"
+    # Serialize with the helper so the driver is not loaded while an earlier
+    # power-down operation is still removing the PCI hierarchy.
     exec 8> "$POWERDOWN_LOCK"
     flock 8
-    log_event daemon.info "action=activate stage=powerdown-lock-acquired"
+    powerdown_lock_acquired=1
+    log_event daemon.info "action=enable stage=powerdown-lock-acquired"
 
-    # If teardown won the race there is no session to keep active. Returning
-    # to the powered-down state lets a later physical replug try again.
-    if ! external_device_present; then
-        rm -f "$STATE_FILE"
-        notify_state_change
+    modprobe thunderbolt
+    log_event daemon.info "action=enable stage=module-loaded module=thunderbolt"
+
+    if ! nhi_present; then
+        # The removed Falcon Ridge hierarchy is rediscovered by a physical
+        # hot-plug edge. Keep the session armed and let attaching the adapter
+        # perform normal PCIe hotplug enumeration.
         flock -u 8
-        log_event daemon.warning "action=activate result=missed reason=external-device-disappeared"
-        "$POWERDOWN_HELPER" || true
+        powerdown_lock_acquired=0
+        trap - ERR
+        log_event daemon.notice \
+            "action=enable result=success state=armed controller=absent attachment_required=yes lifetime=until-disable-suspend-or-reboot"
+        notify_state armed
+        printf 'armed\n'
         return 0
-    fi
-
-    if ! modprobe thunderbolt; then
-        log_event daemon.err "action=activate result=failed reason=module-load"
-        failed=1
-    elif ! set_thunderbolt_tree_power_on; then
-        log_event daemon.err "action=activate result=failed reason=runtime-pm"
-        failed=1
-    fi
-
-    if (( failed )); then
-        rm -f "$STATE_FILE"
-        notify_state_change
-        flock -u 8
-        "$POWERDOWN_HELPER" || true
-        return 1
     fi
 
     flock -u 8
-    notify_state_change
-    log_snapshot "activate-after"
-    log_event daemon.notice "action=activate result=success lifetime=until-suspend-or-reboot"
+    powerdown_lock_acquired=0
+    trap - ERR
+    log_event daemon.notice \
+        "action=enable result=success state=active controller=0000:07:00.0 lifetime=until-disable-suspend-or-reboot"
+    notify_state active
+    printf 'active\n'
 }
 
-power_down_thunderbolt() {
-    local reason="$1"
+teardown_thunderbolt() {
+    local action="$1"
+    local was_enabled=0
 
-    log_event daemon.notice "action=powerdown-request reason=$reason stage=start"
-    log_snapshot "powerdown-request-before"
+    if session_enabled; then
+        was_enabled=1
+    fi
 
+    restore_session_after_failure() {
+        if (( was_enabled )); then
+            install -d -m 0755 "$STATE_DIR" "$RUNTIME_RULE_DIR"
+            ln -sfn /dev/null "$POWERDOWN_MASK"
+            udevadm control --reload-rules || true
+            log_event daemon.warning \
+                "action=$action stage=powerdown-rule-remasked reason=teardown-failed"
+        fi
+    }
+
+    log_event daemon.notice "action=$action stage=start"
+
+    # Arbitrary storage cannot be safely unmounted by this privileged backend.
+    # Refuse the operation without changing session state; after the user
+    # ejects or disconnects the drive, disable or suspend can be retried.
     if thunderbolt_storage_present; then
-        log_event daemon.err "action=powerdown-request reason=$reason result=refused reason_detail=thunderbolt-storage-present"
-        printf 'Disconnect all Thunderbolt storage devices before suspending.\n' >&2
+        log_event daemon.err \
+            "action=$action result=failed reason=thunderbolt-storage-attached"
+        if [[ "$action" == prepare-suspend ]]; then
+            printf 'Eject or disconnect Thunderbolt storage before suspending.\n' >&2
+        else
+            printf 'Eject or disconnect Thunderbolt storage before disabling Thunderbolt.\n' >&2
+        fi
         return 1
     fi
 
-    if lsmod | grep -q '^thunderbolt_net '; then
-        if modprobe -r thunderbolt_net; then
-            log_event daemon.info "action=powerdown-request stage=module-removed module=thunderbolt_net"
-        else
-            log_event daemon.warning "action=powerdown-request stage=module-remove-failed module=thunderbolt_net"
-        fi
+    # Full power-down restores the image's default power-down rule before
+    # touching the PCI hierarchy.
+    remove_powerdown_mask
+    log_event daemon.info \
+        "action=$action stage=powerdown-rule-restored"
+
+    if ! udevadm settle --timeout=30; then
+        log_event daemon.err "action=$action result=failed reason=udev-timeout"
+        printf 'Timed out waiting for Thunderbolt device events to finish.\n' >&2
+        restore_session_after_failure
+        return 1
     fi
-    if lsmod | grep -q '^thunderbolt '; then
-        if ! modprobe -r thunderbolt; then
-            log_event daemon.err "action=powerdown-request result=failed reason=module-remove module=thunderbolt"
+
+    # Remove the optional networking layer first so that it cannot retain the
+    # core Thunderbolt module during PCI hot-removal.
+    if [[ -d /sys/module/thunderbolt_net ]]; then
+        if ! modprobe -r thunderbolt_net; then
+            log_event daemon.err \
+                "action=$action result=failed reason=module-in-use module=thunderbolt_net"
+            printf 'Thunderbolt networking is still in use.\n' >&2
+            restore_session_after_failure
             return 1
         fi
-        log_event daemon.info "action=powerdown-request stage=module-removed module=thunderbolt"
+        log_event daemon.info \
+            "action=$action stage=module-removed module=thunderbolt_net"
     fi
 
-    rm -f "$STATE_FILE" "$LEGACY_RESTART_FILE"
-    notify_state_change
-    "$POWERDOWN_HELPER"
+    if thunderbolt_hierarchy_present; then
+        # The proven boot helper first requests runtime suspend and then uses
+        # the PCI remove interface. PCI core removal invokes the normal remove
+        # callbacks for any downstream adapter before removing its bridges.
+        if ! "$POWERDOWN_HELPER"; then
+            log_event daemon.err \
+                "action=$action result=failed reason=powerdown-helper-failed"
+            printf 'The Thunderbolt power-down helper failed.\n' >&2
+            restore_session_after_failure
+            return 1
+        fi
+        udevadm settle --timeout=30 || true
+    fi
 
-    if falcon_ridge_present; then
-        log_event daemon.err "action=powerdown-request reason=$reason result=failed reason_detail=pci-hierarchy-still-present"
-        log_snapshot "powerdown-request-incomplete"
+    if thunderbolt_hierarchy_present; then
+        log_event daemon.err \
+            "action=$action result=failed reason=pci-hierarchy-remains"
+        printf 'The Thunderbolt PCI hierarchy could not be fully removed.\n' >&2
+        restore_session_after_failure
         return 1
     fi
 
-    notify_state_change
-    log_snapshot "powerdown-request-after"
-    log_event daemon.notice "action=powerdown-request reason=$reason result=success"
+    if [[ -d /sys/module/thunderbolt ]]; then
+        if ! modprobe -r thunderbolt; then
+            log_event daemon.err \
+                "action=$action result=failed reason=module-in-use module=thunderbolt"
+            printf 'The Thunderbolt driver is still in use.\n' >&2
+            restore_session_after_failure
+            return 1
+        fi
+        log_event daemon.info \
+            "action=$action stage=module-removed module=thunderbolt"
+    fi
+
+    log_event daemon.notice \
+        "action=$action result=success state=powered-down reenable=manual"
+    notify_state disabled
+}
+
+disable_thunderbolt() {
+    teardown_thunderbolt disable
+    printf 'disabled\n'
 }
 
 prepare_suspend() {
-    : > "$SUSPEND_FILE"
-    chmod 0644 "$SUSPEND_FILE"
-    notify_state_change
-    log_event daemon.notice "action=prepare-suspend stage=start"
-
-    if [[ -e "$STATE_FILE" ]] || lsmod | grep -q '^thunderbolt ' || falcon_ridge_present; then
-        if ! power_down_thunderbolt suspend; then
-            rm -f "$SUSPEND_FILE"
-            notify_state_change
-            log_event daemon.err "action=prepare-suspend result=failed"
-            return 1
-        fi
-    else
-        log_event daemon.info "action=prepare-suspend result=success reason=already-powered-down"
-    fi
-}
-
-resume_from_suspend() {
-    rm -f "$SUSPEND_FILE"
-    notify_state_change
-    log_event daemon.notice "action=resume stage=start"
-
-    # A connected adapter may have re-enumerated during resume while claims
-    # were suppressed. Reclaim it here; otherwise remain at maximum saving and
-    # wait for the next physical plug event.
-    if external_device_present; then
-        : > "$STATE_FILE"
-        chmod 0644 "$STATE_FILE"
-        notify_state_change
-        log_event daemon.notice "action=resume stage=external-device-present result=reclaiming"
-        activate_hotplug
-    else
-        log_event daemon.notice "action=resume result=powered-down wait_for_hotplug=yes"
-    fi
+    # Use the same proven, one-way teardown as the manual Disable action.
+    # Resume deliberately performs no Thunderbolt recovery; the user must
+    # explicitly enable the controller again after the system wakes.
+    teardown_thunderbolt prepare-suspend
 }
 
 case "${1:-}" in
     status)
         show_status
         ;;
-    hotplug-claim)
-        claim_hotplug
-        ;;
-    hotplug-notify)
-        notify_hotplug_change
-        ;;
-    hotplug-activate|prepare-suspend|resume)
+    enable)
         require_root
         install -d -m 0755 "$STATE_DIR"
         exec 9> "$CONTROL_LOCK"
         flock 9
-        log_event daemon.info "action=$1 stage=control-lock-acquired uid=$EUID"
-        case "$1" in
-            hotplug-activate) activate_hotplug ;;
-            prepare-suspend) prepare_suspend ;;
-            resume) resume_from_suspend ;;
-        esac
+        enable_thunderbolt
+        ;;
+    disable)
+        require_root
+        install -d -m 0755 "$STATE_DIR"
+        exec 9> "$CONTROL_LOCK"
+        flock 9
+        disable_thunderbolt
+        ;;
+    prepare-suspend)
+        require_root
+        install -d -m 0755 "$STATE_DIR"
+        exec 9> "$CONTROL_LOCK"
+        flock 9
+        prepare_suspend
         ;;
     *)
-        printf 'Usage: %s {status|hotplug-claim|hotplug-notify|hotplug-activate|prepare-suspend|resume}\n' "$0" >&2
+        printf 'Usage: %s {status|enable|disable|prepare-suspend}\n' "$0" >&2
         exit 2
         ;;
 esac

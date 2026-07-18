@@ -8,8 +8,9 @@ import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
 const CONTROL = '/usr/libexec/silverletter-thunderbolt-control';
-const STATE_DIR = '/run/silverletter';
+const STATE_FILE = '/run/silverletter/thunderbolt.state';
 const ENABLED_COLOR = '#ed333b';
+const ENABLING_COLOR = '#f6d32d';
 const DISABLED_COLOR = '#ffffff';
 
 const ThunderboltIndicator = GObject.registerClass({
@@ -19,10 +20,12 @@ class ThunderboltIndicator extends PanelMenu.Button {
     _init(extension) {
         super._init(0.0, extension.metadata.name, false);
 
-        this._state = 'disabled';
+        this._enabled = false;
+        this._busy = false;
         this._destroyed = false;
         this._refreshing = false;
         this._refreshPending = false;
+        this._stateMonitor = null;
 
         const iconPath = extension.dir.get_child('icons').get_child('thunderbolt-symbolic.svg').get_path();
         this._icon = new St.Icon({
@@ -37,76 +40,112 @@ class ThunderboltIndicator extends PanelMenu.Button {
         });
         this.menu.addMenuItem(this._statusItem);
 
-        this._powerItem = new PopupMenu.PopupMenuItem('', {
+        this._instructionItem = new PopupMenu.PopupMenuItem('', {
             reactive: false,
             can_focus: false,
         });
-        this.menu.addMenuItem(this._powerItem);
+        this.menu.addMenuItem(this._instructionItem);
+
+        this._experimentalItem = new PopupMenu.PopupMenuItem(
+            'Thunderbolt support is experimental',
+            {
+                reactive: false,
+                can_focus: false,
+            }
+        );
+        this.menu.addMenuItem(this._experimentalItem);
+
+        this._warningItem = new PopupMenu.PopupMenuItem(
+            'Eject Thunderbolt storage before suspend',
+            {
+                reactive: false,
+                can_focus: false,
+            }
+        );
+        this.menu.addMenuItem(this._warningItem);
+
+        this._actionItem = new PopupMenu.PopupMenuItem(
+            'Enable Thunderbolt'
+        );
+        this._actionItem.connect('activate', () => this._toggleThunderbolt());
+        this.menu.addMenuItem(this._actionItem);
 
         this.menu.connect('open-state-changed', (_menu, open) => {
             if (open)
                 this._refresh();
         });
 
-        // The backend touches a state-change file after every transition. A
-        // directory monitor updates the icon without periodic polling or its
-        // associated process and wake-up overhead.
         try {
-            this._stateMonitor = Gio.File.new_for_path(STATE_DIR).monitor_directory(
+            const stateFile = Gio.File.new_for_path(STATE_FILE);
+            this._stateMonitor = stateFile.monitor_file(
                 Gio.FileMonitorFlags.NONE,
                 null
             );
-            this._stateMonitorId = this._stateMonitor.connect('changed', () => this._refresh());
+            this._stateMonitor.connect('changed', () => this._refresh());
         } catch (error) {
             console.error(`Thunderbolt state monitor failed: ${error.message}`);
-            this._stateMonitor = null;
-            this._stateMonitorId = 0;
         }
-
-        // The pre-sleep service always powers the hierarchy down. Refresh on
-        // resume as a fallback even if no filesystem event reaches the shell.
-        this._sleepSignalId = Gio.DBus.system.signal_subscribe(
-            'org.freedesktop.login1',
-            'org.freedesktop.login1.Manager',
-            'PrepareForSleep',
-            '/org/freedesktop/login1',
-            null,
-            Gio.DBusSignalFlags.NONE,
-            (_connection, _sender, _path, _interface, _signal, parameters) => {
-                const [preparingForSleep] = parameters.deepUnpack();
-                if (!preparingForSleep)
-                    this._refresh();
-            }
-        );
 
         this._setState('disabled');
         this._refresh();
     }
 
     _setState(state) {
-        const adapterPresent = state === 'enabled';
-        const warning = state === 'powerdown-incomplete';
+        const enabled = state === 'armed' || state === 'active';
 
-        this._state = state;
-        this._icon.set_style(`color: ${adapterPresent || warning ? ENABLED_COLOR : DISABLED_COLOR};`);
-        this._powerItem.visible = state !== 'enabled';
+        this._enabled = enabled;
+        this._icon.set_style(`color: ${enabled ? ENABLED_COLOR : DISABLED_COLOR};`);
+        this._actionItem.label.text = enabled
+            ? 'Disable Thunderbolt'
+            : 'Enable Thunderbolt';
+        this._warningItem.visible = enabled;
 
-        if (state === 'enabled') {
-            this._statusItem.label.text = 'Thunderbolt is in use';
-            this.accessible_name = 'Thunderbolt in use';
-        } else if (state === 'ready') {
+        if (state === 'active') {
+            this._statusItem.label.text = 'Thunderbolt is Active';
+            this._instructionItem.label.text = 'Disable before removing adapter';
+            this.accessible_name = 'Thunderbolt active';
+        } else if (state === 'armed') {
             this._statusItem.label.text = 'Thunderbolt is ready';
-            this._powerItem.label.text = 'Connect an adapter to use it';
-            this.accessible_name = 'Thunderbolt ready for an adapter';
-        } else if (state === 'powerdown-incomplete') {
-            this._statusItem.label.text = 'Thunderbolt power-down is incomplete';
-            this._powerItem.label.text = 'Maximum power saving is not active';
-            this.accessible_name = 'Thunderbolt power-down incomplete';
+            this._instructionItem.label.text = 'Disable before removing adapter';
+            this.accessible_name = 'Thunderbolt ready';
         } else {
-            this._statusItem.label.text = 'Thunderbolt is powered down';
-            this._powerItem.label.text = 'Connect an adapter to enable it';
+            this._statusItem.label.text = 'Thunderbolt is powered down to save power';
+            this._instructionItem.label.text = 'Enable before attaching adapter';
             this.accessible_name = 'Thunderbolt powered down';
         }
+    }
+
+    _setBusy(busy, operation = '') {
+        this._busy = busy;
+        this._actionItem.setSensitive(!busy);
+        if (busy) {
+            this._icon.set_style(`color: ${ENABLING_COLOR};`);
+            this.accessible_name = operation === 'disable'
+                ? 'Thunderbolt disabling'
+                : 'Thunderbolt enabling';
+            this._statusItem.label.text = operation === 'disable'
+                ? 'Disabling Thunderbolt…'
+                : 'Enabling Thunderbolt…';
+        }
+    }
+
+    _setError(operation, message) {
+        const disabling = operation === 'disable';
+
+        this._enabled = disabling;
+        this._icon.set_style(
+            `color: ${disabling ? ENABLED_COLOR : DISABLED_COLOR};`
+        );
+        this._actionItem.label.text = disabling
+            ? 'Disable Thunderbolt'
+            : 'Enable Thunderbolt';
+        this._statusItem.label.text = disabling
+            ? 'Thunderbolt could not be disabled'
+            : 'Thunderbolt could not be enabled';
+        this._instructionItem.label.text = message;
+        this.accessible_name = disabling
+            ? 'Thunderbolt disablement failed'
+            : 'Thunderbolt enablement failed';
     }
 
     _spawn(argv, callback) {
@@ -132,44 +171,84 @@ class ThunderboltIndicator extends PanelMenu.Button {
     }
 
     _refresh() {
-        if (this._destroyed)
+        if (this._busy || this._destroyed)
             return;
+
         if (this._refreshing) {
             this._refreshPending = true;
             return;
         }
 
         this._refreshing = true;
+        this._refreshPending = false;
         this._spawn([CONTROL, 'status'], (successful, stdout, stderr) => {
             this._refreshing = false;
             if (this._destroyed)
                 return;
-
-            if (successful && ['enabled', 'disabled', 'ready', 'powerdown-incomplete'].includes(stdout))
-                this._setState(stdout);
-            else if (!successful && stderr)
+            if (successful) {
+                const state = stdout === 'active' || stdout === 'armed'
+                    ? stdout
+                    : 'disabled';
+                this._setState(state);
+            }
+            else if (stderr)
                 console.error(`Thunderbolt status failed: ${stderr}`);
 
-            if (this._refreshPending) {
-                this._refreshPending = false;
+            if (this._refreshPending)
                 this._refresh();
+        });
+    }
+
+    _toggleThunderbolt() {
+        if (this._busy)
+            return;
+
+        if (this._enabled)
+            this._disableThunderbolt();
+        else
+            this._enableThunderbolt();
+    }
+
+    _enableThunderbolt() {
+        this._setBusy(true, 'enable');
+        this._spawn(['pkexec', CONTROL, 'enable'], (successful, stdout, stderr) => {
+            if (this._destroyed)
+                return;
+
+            this._setBusy(false);
+            if (successful) {
+                this._setState(stdout === 'armed' ? 'armed' : 'active');
+            } else {
+                this._setError(
+                    'enable',
+                    stderr || 'The Falcon Ridge controller did not appear.'
+                );
+            }
+        });
+    }
+
+    _disableThunderbolt() {
+        this._setBusy(true, 'disable');
+        this._spawn(['pkexec', CONTROL, 'disable'], (successful, _stdout, stderr) => {
+            if (this._destroyed)
+                return;
+
+            this._setBusy(false);
+            if (successful) {
+                this._setState('disabled');
+            } else {
+                this._setError(
+                    'disable',
+                    stderr || 'The Thunderbolt controller could not be powered down.'
+                );
             }
         });
     }
 
     destroy() {
         this._destroyed = true;
-        if (this._stateMonitor) {
-            if (this._stateMonitorId)
-                this._stateMonitor.disconnect(this._stateMonitorId);
-            this._stateMonitor.cancel();
-            this._stateMonitor = null;
-            this._stateMonitorId = 0;
-        }
-        if (this._sleepSignalId) {
-            Gio.DBus.system.signal_unsubscribe(this._sleepSignalId);
-            this._sleepSignalId = 0;
-        }
+        this._stateMonitor?.cancel();
+        this._stateMonitor = null;
         super.destroy();
     }
 });

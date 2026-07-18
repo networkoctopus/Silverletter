@@ -13,20 +13,21 @@ install -Dm644 /ctx/power/thunderbolt-blacklist.conf \
     /usr/lib/modprobe.d/thunderbolt-blacklist.conf
 
 ### ── udev rules ──
-# Enable runtime PM for Thunderbolt PCIe devices
+# Power down the Thunderbolt PCI hierarchy during normal boot.
 # source: https://wiki.archlinux.org/title/Mac/Troubleshooting
 install -Dm644 /ctx/power/99-thunderbolt-pm.rules \
     /usr/lib/udev/rules.d/99-thunderbolt-pm.rules
 
 install -Dm755 /ctx/power/tb-powerdown.sh /usr/libexec/tb-powerdown.sh
 
-install -Dm644 /ctx/power/silverletter-thunderbolt-powerdown.service \
-    /usr/lib/systemd/system/silverletter-thunderbolt-powerdown.service
-systemctl enable silverletter-thunderbolt-powerdown.service
+# Remove unit-based Thunderbolt control from older image revisions. The
+# original, proven power-down path is invoked directly by udev.
+systemctl disable silverletter-thunderbolt-powerdown.service 2>/dev/null || true
+rm -f /usr/lib/systemd/system/silverletter-thunderbolt-powerdown.service
 
 # These are supplied by the Fedora base image. Fail the image build if a future
-# base change removes a dependency used by the always-disabled power-down path.
-for runtime_cmd in flock logger lsmod modprobe udevadm; do
+# base change removes a dependency used by Thunderbolt power control.
+for runtime_cmd in flock logger; do
     command -v "$runtime_cmd" >/dev/null
 done
 

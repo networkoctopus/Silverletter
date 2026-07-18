@@ -1,0 +1,11 @@
+[Unit]
+Description=Gracefully power down Thunderbolt before system sleep
+Before=sleep.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/silverletter-thunderbolt-control prepare-suspend
+TimeoutStartSec=60
+
+[Install]
+RequiredBy=sleep.target

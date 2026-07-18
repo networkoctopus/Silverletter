@@ -1,72 +1,10 @@
 # /usr/lib/udev/rules.d/99-thunderbolt-pm.rules
 
 # Thunderbolt 2 Falcon Ridge power management (MacBook Air 7,1)
-# Internal Falcon Ridge functions are normally torn down for maximum power
-# saving. An external PCI function below port 06:03.0 is treated as a physical
-# plug request and automatically claims the hierarchy before teardown wins.
-
+# Matches all TB2 bridge (156b) and NHI (156a) devices. The helper is locked
+# so only one instance runs despite multiple add events.
 ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x156b", \
-    TEST!="/run/silverletter/thunderbolt-enabled", \
-    TAG+="systemd", ENV{SYSTEMD_WANTS}+="silverletter-thunderbolt-powerdown.service"
+    RUN+="/usr/libexec/tb-powerdown.sh"
 
 ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x156a", \
-    TEST!="/run/silverletter/thunderbolt-enabled", \
-    TAG+="systemd", ENV{SYSTEMD_WANTS}+="silverletter-thunderbolt-powerdown.service"
-
-# KERNELS matches a parent, so this excludes the built-in 06:03.0 bridge itself
-# and matches any external PCIe-tunnelled bridge or endpoint below it. The
-# direct RUN helper only creates a cancellation marker; systemd does the slow
-# driver and runtime-PM work outside the udev worker.
-ACTION=="add", SUBSYSTEM=="pci", KERNELS=="0000:06:03.0", \
-    RUN+="/usr/libexec/silverletter-thunderbolt-control hotplug-claim", \
-    TAG+="systemd", ENV{SYSTEMD_WANTS}+="silverletter-thunderbolt-hotplug.service"
-
-# Keep every function awake while the automatically claimed session is active.
-ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x156b", \
-    TEST=="/run/silverletter/thunderbolt-enabled", ATTR{power/control}="on"
-
-ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x156a", \
-    TEST=="/run/silverletter/thunderbolt-enabled", ATTR{power/control}="on"
-
-ACTION=="add", SUBSYSTEM=="pci", KERNELS=="0000:06:03.0", \
-    TEST=="/run/silverletter/thunderbolt-enabled", ATTR{power/control}="on"
-
-# Removal is informational only. Keep the session armed for efficient
-# reconnection, but tell the GNOME indicator to refresh after the external
-# topology changes. DEVPATH remains available for remove events even though
-# the device's sysfs attributes may already be gone.
-ACTION=="remove", SUBSYSTEM=="pci", DEVPATH=="*/0000:06:03.0/*", \
-    RUN+="/usr/libexec/silverletter-thunderbolt-control hotplug-notify"
-
-# Enable power management for Thunderbolt controllers and ports
-#ACTION=="add", SUBSYSTEM=="pci", KERNEL=="0000:05:00.0", ATTR{power/control}="auto"
-#ACTION=="add", SUBSYSTEM=="pci", KERNEL=="0000:06:00.0", ATTR{power/control}="auto"
-#ACTION=="add", SUBSYSTEM=="pci", KERNEL=="0000:06:03.0", ATTR{power/control}="auto"
-#ACTION=="add", SUBSYSTEM=="pci", KERNEL=="0000:06:04.0", ATTR{power/control}="auto"
-#ACTION=="add", SUBSYSTEM=="pci", KERNEL=="0000:06:05.0", ATTR{power/control}="auto"
-#ACTION=="add", SUBSYSTEM=="pci", KERNEL=="0000:07:00.0", ATTR{power/control}="auto"
-
-#ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="156c", \
-#    RUN+="/bin/sh -c ' \
-#        # 1. Target the Leaf Node (NHI) first
-#        if [ -e /sys/bus/pci/devices/0000:07:00.0 ]; then \
-#            echo auto > /sys/bus/pci/devices/0000:07:00.0/power/control; \
-#            echo 0 > /sys/bus/pci/devices/0000:07:00.0/power/autosuspend_delay_ms; \
-#        fi; \
-#        # 2. Target the Bridges in reverse order (06 then 05)
-#        for dev in 06:06.0 06:05.0 06:04.0 06:03.0 06:00.0 05:00.0; do \
-#            if [ -e /sys/bus/pci/devices/0000:$$dev ]; then \
-#                echo auto > /sys/bus/pci/devices/0000:$$dev/power/control; \
-#                echo 0 > /sys/bus/pci/devices/0000:$$dev/power/autosuspend_delay_ms; \
-#            fi; \
-#        done; \
-#        # 3. Now that they are all in D3, remove them so they stay that way
-#        # and dont block the next system resume.
-#        for dev in 07:00.0 06:06.0 06:05.0 06:04.0 06:03.0 06:00.0 05:00.0; do \
-#            if [ -e /sys/bus/pci/devices/0000:$$dev ]; then \
-#                echo 1 > /sys/bus/pci/devices/0000:$$dev/remove; \
-#            fi; \
-#        done; \
-#    '"
-
-    
+    RUN+="/usr/libexec/tb-powerdown.sh"

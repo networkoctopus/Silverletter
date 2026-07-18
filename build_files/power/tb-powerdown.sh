@@ -1,11 +1,10 @@
 #!/bin/sh
-STATEFILE=/run/silverletter/thunderbolt-enabled
+
 LOCKFILE=/run/tb-powerdown.lock
 LOG_TAG=silverletter-thunderbolt
-if [ -e "$STATEFILE" ]; then
-    logger -t "$LOG_TAG" "action=powerdown result=skipped reason=temporary-enable-active"
-    exit 0
-fi
+STATE_DIR=/run/silverletter
+STATE_FILE="$STATE_DIR/thunderbolt.state"
+
 exec 9> "$LOCKFILE"
 if ! flock -n 9; then
     logger -t "$LOG_TAG" "action=powerdown result=skipped reason=already-running"
@@ -15,40 +14,21 @@ fi
 logger -t "$LOG_TAG" "action=powerdown stage=start"
 sleep 2
 
-# An enable request may have arrived while this udev job was waiting.
-if [ -e "$STATEFILE" ]; then
-    logger -t "$LOG_TAG" "action=powerdown result=cancelled reason=enable-request-during-initial-delay"
-    exit 0
-fi
-
 TB_DEVS="07:00.0 06:06.0 06:05.0 06:04.0 06:03.0 06:00.0 05:00.0"
 
 for dev in $TB_DEVS; do
-    if [ -e "$STATEFILE" ]; then
-        logger -t "$LOG_TAG" "action=powerdown result=cancelled reason=hotplug-claim-during-runtime-pm"
-        exit 0
-    fi
     path="/sys/bus/pci/devices/0000:$dev"
     if [ -e "$path" ]; then
-        echo 0    > "$path/power/autosuspend_delay_ms"
+        echo 0 > "$path/power/autosuspend_delay_ms"
         echo auto > "$path/power/control"
-        logger -t "$LOG_TAG" "action=powerdown stage=runtime-pm device=0000:$dev control=auto"
+        logger -t "$LOG_TAG" \
+            "action=powerdown stage=runtime-pm device=0000:$dev control=auto"
     fi
 done
 
 sleep 1
 
-# Do not tear the hierarchy down if it was enabled while runtime PM settled.
-if [ -e "$STATEFILE" ]; then
-    logger -t "$LOG_TAG" "action=powerdown result=cancelled reason=enable-request-during-runtime-pm-delay"
-    exit 0
-fi
-
 for dev in $TB_DEVS; do
-    if [ -e "$STATEFILE" ]; then
-        logger -t "$LOG_TAG" "action=powerdown result=cancelled reason=hotplug-claim-before-pci-remove"
-        exit 0
-    fi
     path="/sys/bus/pci/devices/0000:$dev"
     if [ -e "$path/remove" ]; then
         echo 1 > "$path/remove"
@@ -56,17 +36,13 @@ for dev in $TB_DEVS; do
     fi
 done
 
-remaining=""
-for dev in $TB_DEVS; do
-    if [ -e "/sys/bus/pci/devices/0000:$dev" ]; then
-        remaining="${remaining}${remaining:+,}0000:$dev"
-    fi
-done
-
-if [ -n "$remaining" ]; then
-    logger -p daemon.err -t "$LOG_TAG" \
-        "action=powerdown result=failed remaining_devices=$remaining"
-    exit 1
+if ! {
+    install -d -m 0755 "$STATE_DIR" &&
+    printf 'disabled\n' > "$STATE_FILE" &&
+    chmod 0644 "$STATE_FILE"
+}; then
+    logger -t "$LOG_TAG" \
+        "action=state-notify result=failed requested_state=disabled"
 fi
 
-logger -t "$LOG_TAG" "action=powerdown result=success remaining_devices=none"
+logger -t "$LOG_TAG" "action=powerdown result=success"

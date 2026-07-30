@@ -1,0 +1,10 @@
+[Unit]
+Description=Disable d3cold for SATA controller to fix MacBookAir7,1 resume hang
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/systemd/scripts/fix-sleep.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

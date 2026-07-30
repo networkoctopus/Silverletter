@@ -4,6 +4,7 @@
 # so modprobe -r always fails. Instead, we bring the interface down
 # before suspend and restart NetworkManager-wifi after resume to
 # force a clean firmware re-initialization.
+# This is not currently deployed.
 IFACE="wlp3s0"
 
 case "$1" in

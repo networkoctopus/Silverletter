@@ -7,6 +7,11 @@ set -ouex pipefail
 install -Dm755 /ctx/fixes/fix-macbook-wakeup \
     /usr/lib/systemd/system-sleep/fix-macbook-wakeup
 
+### Use NetworkManager 1.58 for native iwd WiFi powersave support
+dnf5 -y copr enable networkmanager/NetworkManager-1.58-debug
+dnf5 -y upgrade --refresh 'NetworkManager*'
+rpm -q --queryformat '%{VERSION}\n' NetworkManager | grep -q '^1\.58\.'
+
 ### Use iwd as NetworkManager's WiFi backend, with broadcom-wl tuning
 dnf5 install -y iwd
 install -Dm644 /ctx/fixes/10-wifi-backend.conf \

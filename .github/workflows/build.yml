@@ -55,7 +55,7 @@ jobs:
       matrix:
         # Automatic events build x86 only. workflow_dispatch can manually
         # build either x86 or Asahi from the selected branch.
-        variant: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.variant) || '["x86"]') }}
+        variant: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.variant) || github.event_name == 'schedule' && '["x86", "asahi"]' || '["x86"]') }}
 
     permissions:
       contents: read
@@ -78,7 +78,7 @@ jobs:
 
       # These stage versions are pinned by https://github.com/renovatebot/renovate
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       # This is optional, but if you see that your builds are way too big for the runners, you can enable this by uncommenting the following lines:
       - name: Maximize build space
@@ -135,7 +135,7 @@ jobs:
 
       - name: Build Image
         id: build_image
-        uses: redhat-actions/buildah-build@7a95fa7ee0f02d552a32753e7414641a04307056 # v2
+        uses: redhat-actions/buildah-build@3a51aade9afa17e5c78256bcbe2e1ee08c7b995b # v3
         with:
           containerfiles: |
             ${{ env.CONTAINERFILE }}
@@ -173,7 +173,7 @@ jobs:
       # Automatic publishing is limited to the default branch. Manual runs may
       # also publish when explicitly requested through the workflow input.
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         if: env.PUBLISH_IMAGE == 'true'
         with:
           registry: ghcr.io
@@ -181,7 +181,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Push To GHCR
-        uses: redhat-actions/push-to-registry@5ed88d269cf581ea9ef6dd6806d01562096bee9c # v2
+        uses: redhat-actions/push-to-registry@94ade333c38ecc0e60e94785125d9a52ca423b37 # v3
         if: env.PUBLISH_IMAGE == 'true'
         id: push
         env:

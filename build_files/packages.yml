@@ -4,6 +4,7 @@ tools:
   - intel-gpu-tools
   - telnet
   - fastfetch
+  - iperf3
 
 # Toshy native dependencies
 toshy_deps:

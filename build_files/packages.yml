@@ -43,3 +43,6 @@ theme_deps:
   # uupd
 update_deps:
   - uupd
+
+dev_tools:
+  - flatpak-builder

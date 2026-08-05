@@ -24,9 +24,13 @@ curl --fail --location --retry 3 \
     --output /etc/flatpak/remotes.d/flathub.flatpakrepo \
     https://dl.flathub.org/repo/flathub.flatpakrepo
 
+curl --fail --location --retry 3 \
+    --output /etc/flatpak/remotes.d/networkoctopus.flatpakrepo \
+    https://networkoctopus.github.io/flatpak/networkoctopus.flatpakrepo
+
 cat > /usr/lib/systemd/system/flatpak-add-flathub-repos.service <<'EOF'
 [Unit]
-Description=Add Flathub and remove Fedora Flatpak repositories
+Description=Add Flatpak repositories and remove Fedora Flatpak repositories
 ConditionPathExists=!/var/lib/flatpak/.silverletter-flathub-only-initialized
 Before=flatpak-system-helper.service
 
@@ -34,6 +38,7 @@ Before=flatpak-system-helper.service
 Type=oneshot
 RemainAfterExit=yes
 ExecStart=/usr/bin/flatpak remote-add --system --if-not-exists flathub /etc/flatpak/remotes.d/flathub.flatpakrepo
+ExecStart=/usr/bin/flatpak remote-add --system --if-not-exists networkoctopus /etc/flatpak/remotes.d/networkoctopus.flatpakrepo
 ExecStart=-/usr/bin/flatpak remote-delete --system --force fedora
 ExecStart=-/usr/bin/flatpak remote-delete --system --force fedora-testing
 ExecStartPost=/usr/bin/touch /var/lib/flatpak/.silverletter-flathub-only-initialized
@@ -48,7 +53,7 @@ mv -f \
     /usr/lib/systemd/system/flatpak-add-flathub-repos.service \
     /usr/lib/systemd/system/flatpak-add-fedora-repos.service
 systemctl enable flatpak-add-fedora-repos.service
-echo "unfiltered Flathub enabled; Fedora Flatpak remotes removed"
+echo "Flatpak remotes configured; Fedora Flatpak remotes removed"
 
 ### ── GNOME Software / PackageKit ──
 # Prevent gnome-software from doing background updates

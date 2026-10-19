@@ -7,6 +7,8 @@ initramfs="/lib/modules/${kernel_version}/initramfs.img"
 
 test -x /usr/libexec/silverletter-model
 test -s "$initramfs"
+test -x /usr/lib/systemd/scripts/fix-sleep.sh
+systemctl is-enabled --quiet fix-sleep.service
 
 case "$profile" in
     macbookair7)

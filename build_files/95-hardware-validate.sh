@@ -32,12 +32,14 @@ case "$profile" in
         compgen -G "/lib/modules/${kernel_version}/kernel/drivers/input/keyboard/applespi.ko*"
         compgen -G "/lib/modules/${kernel_version}/kernel/drivers/spi/spi-pxa2xx-platform.ko*"
         compgen -G "/lib/modules/${kernel_version}/kernel/drivers/net/wireless/broadcom/brcm80211/brcmfmac/brcmfmac.ko*"
+        compgen -G "/lib/modules/${kernel_version}/kernel/drivers/net/wireless/broadcom/brcm80211/brcmfmac/wcc/brcmfmac-wcc.ko*"
         compgen -G '/usr/lib/firmware/brcm/brcmfmac4350c2-pcie.bin*'
 
         lsinitrd "$initramfs" > /tmp/silverletter-initramfs-list
         grep -q '/applespi\.ko' /tmp/silverletter-initramfs-list
         grep -q '/spi-pxa2xx-platform\.ko' /tmp/silverletter-initramfs-list
         grep -q '/brcmfmac\.ko' /tmp/silverletter-initramfs-list
+        grep -q '/brcmfmac-wcc\.ko' /tmp/silverletter-initramfs-list
         rm -f /tmp/silverletter-initramfs-list
         ;;
     *)

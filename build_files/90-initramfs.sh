@@ -15,9 +15,10 @@ EOF
 elif [[ "$HARDWARE_PROFILE" == "macbook9" ]]; then
 cat > /usr/lib/dracut/dracut.conf.d/99-silverletter.conf << 'EOF'
 # MacBook9,1: keep a general initramfs and force the in-tree SPI top-case
-# stack to be available during early boot. Intel LPSS is built into Fedora's
-# kernel; these are the loadable pieces used by APP000D.
-add_drivers+=" applespi spi_pxa2xx_core spi_pxa2xx_platform spi_pxa2xx_pci brcmfmac "
+# stack and the BCM4350 vendor plugin to be available during early boot. Intel
+# LPSS is built into Fedora's kernel; these are the loadable pieces used by
+# APP000D and brcmfmac's WCC firmware path.
+add_drivers+=" applespi spi_pxa2xx_core spi_pxa2xx_platform spi_pxa2xx_pci brcmfmac brcmfmac_wcc "
 compress="zstd"
 compress_level_zstd="3"
 EOF

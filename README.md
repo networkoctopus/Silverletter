@@ -50,7 +50,7 @@ These related Intel-based MacBook Air computers are reasonable candidates, but a
 | `MacBookAir6,2` | 13-inch, Mid 2013 or Early 2014 | Similar generation; untested |
 | `MacBookAir5,1` | 11-inch, Mid 2012 | Earlier related hardware; least certain |
 | `MacBookAir5,2` | 13-inch, Mid 2012 | Earlier related chassis; least certain |
-| `MacBook9,1` | 12-inch, Early 2016 | Dedicated image; implementation tested, boot validation pending |
+| `MacBook9,1` | 12-inch, Early 2016 | Dedicated image; keyboard and trackpad boot-tested |
 
 ### MacBook9,1 image
 
@@ -62,7 +62,7 @@ ghcr.io/networkoctopus/silverletter-macbook9:latest
 
 It differs from the Air image only where the hardware requires it:
 
-- Uses Fedora's in-tree `applespi`, Intel LPSS/SPI, and `brcmfmac` drivers. The required input modules are forced into the image initramfs; no legacy Apple SPI DKMS driver is installed.
+- Uses Fedora's in-tree `applespi`, Intel LPSS/SPI, and `brcmfmac` drivers. The required input and BCM4350 WCC modules are forced into the image initramfs; no legacy Apple SPI DKMS driver is installed.
 - Uses Fedora's `brcmfmac-firmware` for the BCM4350 Wi-Fi device (`14e4:43a3`). The proprietary `broadcom-wl` package and its broad `brcmfmac` blacklist are omitted.
 - Does not apply the Air-only `acpi_osi=!Darwin` or `pci=hpbussize=8` arguments.
 - Does not install or enable the Air's Thunderbolt teardown/UI, fixed-address ASPM and storage workarounds, CPU suspend hook, or `mbpfan`. MacBook9,1 is fanless and has USB-C without Thunderbolt.
@@ -70,10 +70,11 @@ It differs from the Air image only where the hardware requires it:
 
 Current limitations and validation status:
 
-- Wi-Fi has been physically probed with `brcmfmac` and can scan 2.4 GHz and 5 GHz networks. Association, suspend, and resume still need validation after booting the image.
+- The internal keyboard and trackpad initialize and work after booting the dedicated image.
+- Wi-Fi has been physically probed with `brcmfmac` and can scan 2.4 GHz and 5 GHz networks. The first image boot exposed an early-boot ordering failure because Fedora's split `brcmfmac_wcc` plugin was not in the initramfs; the plugin is now forced into the initramfs. Association, suspend, and resume still need validation.
 - The lid switch, audio devices, camera, Bluetooth controller, battery, display brightness, NVMe storage, and USB-C hub/charging enumerate on the test machine. End-to-end audio, camera, Bluetooth pairing, external display, lid-close policy, and suspend/resume tests remain pending.
 - The Bluetooth controller runs without an optional board-specific `BCM.hcd` patch and reports the missing patch in the kernel log. Because the controller enumerates and powers on, no unverified or unredistributable firmware is bundled. Test pairing before treating this as a failure.
-- The first boot must prove that restoring the kernel's normal Apple/Darwin ACPI behavior resolves the observed `applespi` initialization timeout. Keep a USB keyboard/mouse and Ethernet connected for the first test.
+- Keep USB input and Ethernet available when testing a newly built image or kernel.
 
 The driver choices follow the [upstream Apple SPI driver](https://github.com/torvalds/linux/blob/master/drivers/input/keyboard/applespi.c), [Linux Wireless brcmfmac guidance](https://wireless.docs.kernel.org/en/latest/en/users/drivers/brcm80211.html), and Fedora's maintained [brcmfmac-firmware package](https://packages.fedoraproject.org/pkgs/linux-firmware/brcmfmac-firmware/). See [the captured hardware baseline](docs/macbook9-1-baseline.md) for the evidence behind each change.
 

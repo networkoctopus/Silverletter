@@ -10,6 +10,7 @@ on:
   push:
     branches:
       - main
+      - macbook9-1-hardware-support
     paths-ignore:
       - '**/README.md'
   workflow_dispatch:
@@ -39,8 +40,8 @@ env:
   IMAGE_KEYWORDS: "bootc,ublue,universal-blue,mac,power-saving"
   IMAGE_LOGO_URL: "https://avatars.githubusercontent.com/u/120078124?s=200&v=4"  # Put your own image here for a fancy profile on https://artifacthub.io/!
   IMAGE_REGISTRY: "ghcr.io/${{ github.repository_owner }}"  # do not edit
-  DEFAULT_TAG: "${{ github.event_name == 'workflow_dispatch' && inputs.tag || 'latest' }}"
-  PUBLISH_IMAGE: "${{ github.event_name != 'pull_request' && ((github.event_name == 'workflow_dispatch' && inputs.publish) || (github.event_name != 'workflow_dispatch' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))) }}"
+  DEFAULT_TAG: "${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref == 'refs/heads/macbook9-1-hardware-support' && 'testing' || 'latest' }}"
+  PUBLISH_IMAGE: "${{ github.event_name != 'pull_request' && ((github.event_name == 'workflow_dispatch' && inputs.publish) || (github.event_name != 'workflow_dispatch' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || github.ref == 'refs/heads/macbook9-1-hardware-support'))) }}"
   HAS_SIGNING_KEY: "${{ secrets.SIGNING_SECRET != '' }}"
 
 concurrency:
@@ -57,7 +58,7 @@ jobs:
       matrix:
         # Manual runs build the selected variant. Normal x86 publication keeps
         # its existing name; MacBook9,1 is additive and separately tagged.
-        variant: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.variant) || github.event_name == 'schedule' && '["x86", "macbook9", "asahi"]' || '["x86", "macbook9"]') }}
+        variant: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.variant) || github.ref == 'refs/heads/macbook9-1-hardware-support' && '["macbook9"]' || github.event_name == 'schedule' && '["x86", "macbook9", "asahi"]' || '["x86", "macbook9"]') }}
 
     permissions:
       contents: read

@@ -67,6 +67,27 @@ make install PREFIX=/usr
 cd /
 rm -rf /tmp/facetimehd-firmware
 
+### ── MacBook9,1 CS4208 audio (built from source) ──
+if [[ "$HARDWARE_PROFILE" == "macbook9" ]]; then
+    # Mainline detects the codec but does not initialize the 12-inch MacBook's
+    # digital speaker path and external amplifier. Build the model-specific
+    # replacement for the exact image kernel; do not carry DKMS into the image.
+    pinned_clone \
+        https://github.com/leifliddy/macbook12-audio-driver.git \
+        4cdfcdbac2db3f300cc45d9679cfd21df6590a8a \
+        /tmp/macbook12-audio-driver
+    cd /tmp/macbook12-audio-driver
+    MACBOOK12_AUDIO_KERNEL_CACHE=/var/cache/macbook12-audio-driver \
+        ./prepare.cirrus.driver.sh "${KERNEL_VERSION}"
+    make KERNELRELEASE="${KERNEL_VERSION}"
+    make KERNELRELEASE="${KERNEL_VERSION}" install
+    install -Dm644 \
+        contrib/wireplumber/wireplumber.conf.d/51-macbook-cs4208-softvol.conf \
+        /usr/share/wireplumber/wireplumber.conf.d/51-macbook-cs4208-softvol.conf
+    cd /
+    rm -rf /tmp/macbook12-audio-driver
+fi
+
 ### ── mbpfan (fan control for MacBooks) ──
 if [[ "$HARDWARE_PROFILE" == "macbookair7" ]]; then
     pinned_clone \

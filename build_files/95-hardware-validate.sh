@@ -34,12 +34,16 @@ case "$profile" in
         compgen -G "/lib/modules/${kernel_version}/kernel/drivers/net/wireless/broadcom/brcm80211/brcmfmac/brcmfmac.ko*"
         compgen -G "/lib/modules/${kernel_version}/kernel/drivers/net/wireless/broadcom/brcm80211/brcmfmac/wcc/brcmfmac-wcc.ko*"
         compgen -G '/usr/lib/firmware/brcm/brcmfmac4350c2-pcie.bin*'
+        test "$(modinfo -k "$kernel_version" -n snd_hda_codec_cs420x)" = \
+            "/lib/modules/${kernel_version}/updates/snd-hda-codec-cs420x.ko"
+        test -f /usr/share/wireplumber/wireplumber.conf.d/51-macbook-cs4208-softvol.conf
 
         lsinitrd "$initramfs" > /tmp/silverletter-initramfs-list
         grep -q '/applespi\.ko' /tmp/silverletter-initramfs-list
         grep -q '/spi-pxa2xx-platform\.ko' /tmp/silverletter-initramfs-list
         grep -q '/brcmfmac\.ko' /tmp/silverletter-initramfs-list
         grep -q '/brcmfmac-wcc\.ko' /tmp/silverletter-initramfs-list
+        grep -q '/updates/snd-hda-codec-cs420x\.ko' /tmp/silverletter-initramfs-list
         rm -f /tmp/silverletter-initramfs-list
         ;;
     *)

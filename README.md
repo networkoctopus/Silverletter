@@ -64,6 +64,7 @@ It differs from the Air image only where the hardware requires it:
 
 - Uses Fedora's in-tree `applespi`, Intel LPSS/SPI, and `brcmfmac` drivers. The required input and BCM4350 WCC modules are forced into the image initramfs; no legacy Apple SPI DKMS driver is installed.
 - Uses Fedora's `brcmfmac-firmware` for the BCM4350 Wi-Fi device (`14e4:43a3`). The proprietary `broadcom-wl` package and its broad `brcmfmac` blacklist are omitted.
+- Builds the pinned [MacBook12 CS4208 driver](https://github.com/leifliddy/macbook12-audio-driver) for the image kernel. Mainline detects this codec but does not initialize the MacBook9,1 digital speaker/amplifier path. A model-specific WirePlumber rule supplies software volume control.
 - Does not apply the Air-only `acpi_osi=!Darwin` or `pci=hpbussize=8` arguments.
 - Does not install or enable the Air's Thunderbolt teardown/UI, fixed-address ASPM and storage workarounds, CPU suspend hook, or `mbpfan`. MacBook9,1 is fanless and has USB-C without Thunderbolt.
 - Keeps USB-C data, charging, display paths, and networking under the normal kernel drivers rather than applying Thunderbolt teardown rules.
@@ -72,6 +73,7 @@ Current limitations and validation status:
 
 - The internal keyboard and trackpad initialize and work after booting the dedicated image.
 - Wi-Fi has been physically probed with `brcmfmac` and can scan 2.4 GHz and 5 GHz networks. The first image boot exposed an early-boot ordering failure because Fedora's split `brcmfmac_wcc` plugin was not in the initramfs; the plugin is now forced into the initramfs. Association, suspend, and resume still need validation.
+- The stock kernel enumerates the CS4208 codec and routes PipeWire correctly, but produces no internal-speaker output because it does not initialize the model-specific digital path and amplifier. The replacement driver is build-validated; speaker, headphone, microphone, and resume behavior still need physical validation.
 - The lid switch, audio devices, camera, Bluetooth controller, battery, display brightness, NVMe storage, and USB-C hub/charging enumerate on the test machine. End-to-end audio, camera, Bluetooth pairing, external display, lid-close policy, and suspend/resume tests remain pending.
 - The Bluetooth controller runs without an optional board-specific `BCM.hcd` patch and reports the missing patch in the kernel log. Because the controller enumerates and powers on, no unverified or unredistributable firmware is bundled. Test pairing before treating this as a failure.
 - Keep USB input and Ethernet available when testing a newly built image or kernel.

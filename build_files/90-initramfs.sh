@@ -17,8 +17,9 @@ cat > /usr/lib/dracut/dracut.conf.d/99-silverletter.conf << 'EOF'
 # MacBook9,1: keep a general initramfs and force the in-tree SPI top-case
 # stack and the BCM4350 vendor plugin to be available during early boot. Intel
 # LPSS is built into Fedora's kernel; these are the loadable pieces used by
-# APP000D and brcmfmac's WCC firmware path.
-add_drivers+=" applespi spi_pxa2xx_core spi_pxa2xx_platform spi_pxa2xx_pci brcmfmac brcmfmac_wcc "
+# APP000D and brcmfmac's WCC firmware path. Force the model-specific CS4208
+# replacement to win over the stock codec module during early loading.
+add_drivers+=" applespi spi_pxa2xx_core spi_pxa2xx_platform spi_pxa2xx_pci brcmfmac brcmfmac_wcc snd_hda_codec_cs420x "
 compress="zstd"
 compress_level_zstd="3"
 EOF

@@ -20,6 +20,11 @@ readonly -a TB_DEVICES=(
     05:00.0
 )
 
+if ! /usr/libexec/silverletter-model require MacBookAir7,1; then
+    printf 'Thunderbolt control is only supported on MacBookAir7,1.\n' >&2
+    exit 3
+fi
+
 log_event() {
     local priority="$1"
     shift

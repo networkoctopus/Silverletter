@@ -1,5 +1,11 @@
 #!/bin/sh
 
+if ! /usr/libexec/silverletter-model require MacBookAir7,1; then
+    logger -t silverletter-thunderbolt \
+        "action=powerdown result=skipped reason=unsupported-model"
+    exit 0
+fi
+
 LOCKFILE=/run/tb-powerdown.lock
 LOG_TAG=silverletter-thunderbolt
 STATE_DIR=/run/silverletter

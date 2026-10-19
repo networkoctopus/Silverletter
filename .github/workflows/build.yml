@@ -21,6 +21,7 @@ on:
         type: choice
         options:
           - x86
+          - macbook9
           - asahi
       publish:
         description: "Publish the built images to GHCR"
@@ -40,6 +41,7 @@ env:
   IMAGE_REGISTRY: "ghcr.io/${{ github.repository_owner }}"  # do not edit
   DEFAULT_TAG: "${{ github.event_name == 'workflow_dispatch' && inputs.tag || 'latest' }}"
   PUBLISH_IMAGE: "${{ github.event_name != 'pull_request' && ((github.event_name == 'workflow_dispatch' && inputs.publish) || (github.event_name != 'workflow_dispatch' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))) }}"
+  HAS_SIGNING_KEY: "${{ secrets.SIGNING_SECRET != '' }}"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref || github.run_id }}-${{ inputs.variant || 'automatic' }}-${{ inputs.tag || 'latest' }}
@@ -48,14 +50,14 @@ concurrency:
 jobs:
   build_push:
     name: Build and push ${{ matrix.variant }} image
-    runs-on: ${{ matrix.variant == 'x86' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
+    runs-on: ${{ matrix.variant == 'asahi' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
 
     strategy:
       fail-fast: false
       matrix:
-        # Automatic events build x86 only. workflow_dispatch can manually
-        # build either x86 or Asahi from the selected branch.
-        variant: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.variant) || github.event_name == 'schedule' && '["x86", "asahi"]' || '["x86"]') }}
+        # Manual runs build the selected variant. Normal x86 publication keeps
+        # its existing name; MacBook9,1 is additive and separately tagged.
+        variant: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.variant) || github.event_name == 'schedule' && '["x86", "macbook9", "asahi"]' || '["x86", "macbook9"]') }}
 
     permissions:
       contents: read
@@ -72,6 +74,9 @@ jobs:
           if [[ "${{ matrix.variant }}" == "asahi" ]]; then
             IMAGE_NAME="${IMAGE_NAME}-asahi"
             CONTAINERFILE="Containerfile.asahi"
+          elif [[ "${{ matrix.variant }}" == "macbook9" ]]; then
+            IMAGE_NAME="${IMAGE_NAME}-macbook9"
+            CONTAINERFILE="Containerfile.macbook9"
           fi
           echo "IMAGE_NAME=${IMAGE_NAME,,}" >> ${GITHUB_ENV}
           echo "CONTAINERFILE=${CONTAINERFILE}" >> ${GITHUB_ENV}
@@ -82,7 +87,7 @@ jobs:
 
       # This is optional, but if you see that your builds are way too big for the runners, you can enable this by uncommenting the following lines:
       - name: Maximize build space
-        if: matrix.variant == 'x86'
+        if: matrix.variant != 'asahi'
         uses: ublue-os/remove-unwanted-software@695eb75bc387dbcd9685a8e72d23439d8686cba6
 
       - name: Install ARM build dependencies
@@ -201,12 +206,12 @@ jobs:
       # to consume. For more details, review the image signing section of the README.
       - name: Install Cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
-        if: env.PUBLISH_IMAGE == 'true'
+        if: env.PUBLISH_IMAGE == 'true' && env.HAS_SIGNING_KEY == 'true'
         with:
           cosign-release: 'v2.6.1'
 
       - name: Sign container image
-        if: env.PUBLISH_IMAGE == 'true'
+        if: env.PUBLISH_IMAGE == 'true' && env.HAS_SIGNING_KEY == 'true'
         run: |
           IMAGE_FULL="${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}"
           for tag in ${{ steps.metadata.outputs.tags }}; do

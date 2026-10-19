@@ -1,6 +1,9 @@
 #!/usr/bin/bash
 set -eoux pipefail
 
+HARDWARE_PROFILE="${SILVERLETTER_HARDWARE_PROFILE:-macbookair7}"
+
+if [[ "$HARDWARE_PROFILE" == "macbookair7" ]]; then
 cat > /usr/lib/dracut/dracut.conf.d/99-silverletter.conf << 'EOF'
 # Silverletter: trim initramfs for MacBook Air 7,1 hardware
 omit_drivers+=" qla2xxx qla4xxx lpfc mpt3sas mpt2sas qed qedf qedi intel_qat amdgpu radeon nouveau nvidia xe "
@@ -9,6 +12,19 @@ remove_items+=" /usr/lib/firmware/i915 /usr/lib/firmware/xe /usr/lib/firmware/in
 compress="zstd"
 compress_level_zstd="3"
 EOF
+elif [[ "$HARDWARE_PROFILE" == "macbook9" ]]; then
+cat > /usr/lib/dracut/dracut.conf.d/99-silverletter.conf << 'EOF'
+# MacBook9,1: keep a general initramfs and force the in-tree SPI top-case
+# stack to be available during early boot. Intel LPSS is built into Fedora's
+# kernel; these are the loadable pieces used by APP000D.
+add_drivers+=" applespi spi_pxa2xx_core spi_pxa2xx_platform spi_pxa2xx_pci brcmfmac "
+compress="zstd"
+compress_level_zstd="3"
+EOF
+else
+    echo "Unknown hardware profile: $HARDWARE_PROFILE" >&2
+    exit 1
+fi
 
 KERNEL_VERSION="$(rpm -q --queryformat="%{evr}.%{arch}" kernel-core)"
 

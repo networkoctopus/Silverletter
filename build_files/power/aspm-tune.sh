@@ -1,6 +1,11 @@
 #!/bin/bash
 set -u
 
+if ! /usr/libexec/silverletter-model require MacBookAir7,1; then
+echo "ASPM overrides are only supported on MacBookAir7,1; skipping"
+exit 0
+fi
+
 # ===== USER CONFIG =====
 ROOT_COMPLEXES=("00:1c.0" "00:1c.2" "00:1c.4")
 ENDPOINTS=("02:00.0" "03:00.0")

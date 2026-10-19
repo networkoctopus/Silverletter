@@ -5,7 +5,7 @@
 
 **A love letter to 'old' hardware, delivered as a bootc image**
 
-Silverletter is a bootable container made specifically for the Intel MacBook Air, based on [Fedora Silverblue](https://fedoraproject.org/atomic-desktops/silverblue/). It currently tracks [Fedora 44](https://fedoraproject.org).
+Silverletter is a bootable container for selected Intel Mac computers, based on [Fedora Silverblue](https://fedoraproject.org/atomic-desktops/silverblue/). It currently tracks [Fedora 44](https://fedoraproject.org).
 
 Instead of relegating my 11-year-old, 11-inch laptop to the gap in my couch - I wanted a reliable, modern and secure system with all necessary drivers included, kept close to its upstream base, and carefully tuned to **maximise battery life***.
 
@@ -34,7 +34,9 @@ This began as a playground for bootc using the excellent [Universal Blue image-t
 
 ## Hardware compatibility
 
-The image is developed and daily-tested on a **2015 11" MacBook Air (`MacBookAir7,1`)**. Its initramfs and power configuration are intentionally tailored to this generation.
+The main image is developed and daily-tested on a **2015 11" MacBook Air (`MacBookAir7,1`)**. Its initramfs and power configuration remain intentionally tailored to this generation.
+
+The **2016 12-inch Retina MacBook (`MacBook9,1`)** uses the separate `silverletter-macbook9` image. A separate image is required because kernel arguments take effect before runtime model detection: the Air image requires an ACPI override that interferes with the MacBook9,1 Apple SPI top case, and its Thunderbolt configuration is inapplicable to the MacBook9,1 USB-C port.
 
 Do not assume that other MacBook or MacBook Pro computers are compatible. The trimmed initramfs omits drivers and storage features this specific machine does not need.
 
@@ -48,6 +50,32 @@ These related Intel-based MacBook Air computers are reasonable candidates, but a
 | `MacBookAir6,2` | 13-inch, Mid 2013 or Early 2014 | Similar generation; untested |
 | `MacBookAir5,1` | 11-inch, Mid 2012 | Earlier related hardware; least certain |
 | `MacBookAir5,2` | 13-inch, Mid 2012 | Earlier related chassis; least certain |
+| `MacBook9,1` | 12-inch, Early 2016 | Dedicated image; implementation tested, boot validation pending |
+
+### MacBook9,1 image
+
+The dedicated image is published as:
+
+```text
+ghcr.io/networkoctopus/silverletter-macbook9:latest
+```
+
+It differs from the Air image only where the hardware requires it:
+
+- Uses Fedora's in-tree `applespi`, Intel LPSS/SPI, and `brcmfmac` drivers. The required input modules are forced into the image initramfs; no legacy Apple SPI DKMS driver is installed.
+- Uses Fedora's `brcmfmac-firmware` for the BCM4350 Wi-Fi device (`14e4:43a3`). The proprietary `broadcom-wl` package and its broad `brcmfmac` blacklist are omitted.
+- Does not apply the Air-only `acpi_osi=!Darwin` or `pci=hpbussize=8` arguments.
+- Does not install or enable the Air's Thunderbolt teardown/UI, fixed-address ASPM and storage workarounds, CPU suspend hook, or `mbpfan`. MacBook9,1 is fanless and has USB-C without Thunderbolt.
+- Keeps USB-C data, charging, display paths, and networking under the normal kernel drivers rather than applying Thunderbolt teardown rules.
+
+Current limitations and validation status:
+
+- Wi-Fi has been physically probed with `brcmfmac` and can scan 2.4 GHz and 5 GHz networks. Association, suspend, and resume still need validation after booting the image.
+- The lid switch, audio devices, camera, Bluetooth controller, battery, display brightness, NVMe storage, and USB-C hub/charging enumerate on the test machine. End-to-end audio, camera, Bluetooth pairing, external display, lid-close policy, and suspend/resume tests remain pending.
+- The Bluetooth controller runs without an optional board-specific `BCM.hcd` patch and reports the missing patch in the kernel log. Because the controller enumerates and powers on, no unverified or unredistributable firmware is bundled. Test pairing before treating this as a failure.
+- The first boot must prove that restoring the kernel's normal Apple/Darwin ACPI behavior resolves the observed `applespi` initialization timeout. Keep a USB keyboard/mouse and Ethernet connected for the first test.
+
+The driver choices follow the [upstream Apple SPI driver](https://github.com/torvalds/linux/blob/master/drivers/input/keyboard/applespi.c), [Linux Wireless brcmfmac guidance](https://wireless.docs.kernel.org/en/latest/en/users/drivers/brcm80211.html), and Fedora's maintained [brcmfmac-firmware package](https://packages.fedoraproject.org/pkgs/linux-firmware/brcmfmac-firmware/). See [the captured hardware baseline](docs/macbook9-1-baseline.md) for the evidence behind each change.
 
 ## *Battery
 
@@ -95,6 +123,49 @@ sudo bootc status
 ```
 
 If the new deployment does not suit your machine, boot the previous deployment from the boot menu or roll back:
+
+```bash
+sudo bootc rollback
+sudo systemctl reboot
+```
+
+### Test the MacBook9,1 image
+
+Inspect and record any layered packages first. Layering makes the current deployment incompatible with `bootc` image management until the mutation is reset:
+
+```bash
+rpm-ostree status -v
+```
+
+For the test machine captured in this repository, VS Code is layered as the `code` package. Reset mutations, stage the dedicated image without rebooting, remove the two inherited Air arguments from the staged deployment, and inspect everything before restarting:
+
+```bash
+sudo rpm-ostree reset
+sudo bootc switch ghcr.io/OWNER/silverletter-macbook9:testing
+sudo rpm-ostree kargs --delete-if-present='acpi_osi=!Darwin' --delete-if-present='pci=hpbussize=8'
+sudo bootc status
+sudo rpm-ostree status -v
+```
+
+Replace `OWNER` with the GitHub account or organization that published the test
+build. Fork builds can publish without the upstream repository's optional image
+signing secret; production builds are signed when that secret is configured.
+
+Do not use `bootc switch --apply` for the first test. Reboot only after confirming the staged image and arranging a fallback input/network path. After a successful hardware test, VS Code can be restored with:
+
+```bash
+sudo rpm-ostree install code
+```
+
+That creates another pending deployment and therefore requires a later reboot. Alternatively, use the Flatpak or Toolbox version to avoid making the bootc deployment locally derived.
+
+To abandon the staged deployment before rebooting:
+
+```bash
+sudo rpm-ostree cleanup --pending
+```
+
+After booting the test image, use the boot menu to select the retained previous deployment if input or networking fails. From a working deployment, roll back with:
 
 ```bash
 sudo bootc rollback

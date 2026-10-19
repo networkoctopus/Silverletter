@@ -301,6 +301,27 @@ elif [[ $aspm_disabled -gt 0 ]]; then
     warn "$aspm_disabled device(s) have ASPM disabled"
 fi
 
+info "Targeted ASPM overrides:"
+TARGET_PCIE_DEVS=("00:1c.0" "00:1c.2" "00:1c.4" "02:00.0" "03:00.0")
+for dev in "${TARGET_PCIE_DEVS[@]}"; do
+    if [[ -e "/sys/bus/pci/devices/0000:$dev" ]]; then
+        linkctl=$(setpci -s "$dev" CAP_EXP+10.w 2>/dev/null || true)
+        name=$(lspci -s "$dev" 2>/dev/null | cut -d' ' -f3-)
+        if [[ -n "$linkctl" ]]; then
+            aspm_bits=$(( 0x$linkctl & 0x3 ))
+            if [[ $aspm_bits -eq 3 ]]; then
+                pass "$dev — ASPM bits=$aspm_bits linkctl=0x$linkctl — $name"
+            else
+                warn "$dev — ASPM bits=$aspm_bits linkctl=0x$linkctl — $name"
+            fi
+        else
+            warn "$dev — unable to read PCIe Link Control — $name"
+        fi
+    else
+        info "$dev — not present"
+    fi
+done
+
 # ─── 7. PCIe RUNTIME PM ────────────────────────────────────────────────────
 header "PCIe Runtime PM Summary"
 

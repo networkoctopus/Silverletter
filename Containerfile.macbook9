@@ -1,7 +1,7 @@
 # MacBook9,1 needs the normal Apple/Darwin ACPI path for its SPI top case and
 # has USB-C rather than Thunderbolt. Keep it separate from the MacBookAir7,1
 # image because boot-time kernel arguments cannot be selected by userspace.
-ARG FEDORA_VERSION=45
+ARG FEDORA_VERSION=44
 ARG HARDWARE_PROFILE=macbook9
 
 FROM scratch AS ctx

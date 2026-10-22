@@ -34,52 +34,26 @@ This began as a playground for bootc using the excellent [Universal Blue image-t
 
 ## Hardware compatibility
 
-The main image is developed and daily-tested on a **2015 11" MacBook Air (`MacBookAir7,1`)**. Its initramfs and power configuration remain intentionally tailored to this generation.
+### Tested
 
-The **2016 12-inch Retina MacBook (`MacBook9,1`)** uses the separate `silverletter-macbook9` image. A separate image is required because kernel arguments take effect before runtime model detection: the Air image requires an ACPI override that interferes with the MacBook9,1 Apple SPI top case, and its Thunderbolt configuration is inapplicable to the MacBook9,1 USB-C port.
+| Machine | Image |
+| --- | --- |
+| 11-inch MacBook Air, Early 2015 (`MacBookAir7,1`) | `ghcr.io/networkoctopus/silverletter:latest` |
+| 12-inch Retina MacBook, Early 2016 (`MacBook9,1`) | `ghcr.io/networkoctopus/silverletter-macbook9:latest` |
+| Apple silicon M2 Mac | `ghcr.io/networkoctopus/silverletter-asahi:testing` |
 
-Do not assume that other MacBook or MacBook Pro computers are compatible. The trimmed initramfs omits drivers and storage features this specific machine does not need.
+### Candidates (not tested)
 
-These related Intel-based MacBook Air computers are reasonable candidates, but are **untested unless stated otherwise**:
+| Machine | Model identifier |
+| --- | --- |
+| 13-inch MacBook Air, Early 2015 or 2017 | `MacBookAir7,2` |
+| 11-inch MacBook Air, Mid 2013 or Early 2014 | `MacBookAir6,1` |
+| 13-inch MacBook Air, Mid 2013 or Early 2014 | `MacBookAir6,2` |
+| 11-inch MacBook Air, Mid 2012 | `MacBookAir5,1` |
+| 13-inch MacBook Air, Mid 2012 | `MacBookAir5,2` |
 
-| Model identifier | Apple model | Confidence |
-| --- | --- | --- |
-| `MacBookAir7,1` | 11-inch, Early 2015 | Daily-tested target |
-| `MacBookAir7,2` | 13-inch, Early 2015 or 2017 | Closest sibling; likely candidate |
-| `MacBookAir6,1` | 11-inch, Mid 2013 or Early 2014 | Similar generation; untested |
-| `MacBookAir6,2` | 13-inch, Mid 2013 or Early 2014 | Similar generation; untested |
-| `MacBookAir5,1` | 11-inch, Mid 2012 | Earlier related hardware; least certain |
-| `MacBookAir5,2` | 13-inch, Mid 2012 | Earlier related chassis; least certain |
-| `MacBook9,1` | 12-inch, Early 2016 | Dedicated image; keyboard and trackpad boot-tested |
+Other models may not boot because the images contain hardware-specific configuration.
 
-### MacBook9,1 image
-
-The dedicated image is published as:
-
-```text
-ghcr.io/networkoctopus/silverletter-macbook9:latest
-```
-
-It differs from the Air image only where the hardware requires it:
-
-- Uses Fedora's in-tree `applespi`, Intel LPSS/SPI, and `brcmfmac` drivers. The required input and BCM4350 WCC modules are forced into the image initramfs; no legacy Apple SPI DKMS driver is installed.
-- Uses Fedora's `brcmfmac-firmware` for the BCM4350 Wi-Fi device (`14e4:43a3`). The proprietary `broadcom-wl` package and its broad `brcmfmac` blacklist are omitted.
-- Builds the pinned [MacBook12 CS4208 driver](https://github.com/leifliddy/macbook12-audio-driver) for the image kernel. Mainline detects this codec but does not initialize the MacBook9,1 digital speaker/amplifier path. A model-specific WirePlumber rule supplies software volume control.
-- Does not apply the Air-only `acpi_osi=!Darwin` or `pci=hpbussize=8` arguments.
-- Does not install or enable the Air's Thunderbolt teardown/UI, fixed-address ASPM workaround, CPU suspend hook, or `mbpfan`. MacBook9,1 is fanless and has USB-C without Thunderbolt. Its own exact-model storage workaround disables D3cold for the Apple NVMe controller and parent root port so both recover after suspend.
-- Keeps USB-C data, charging, display paths, and networking under the normal kernel drivers rather than applying Thunderbolt teardown rules.
-
-Current limitations and validation status:
-
-- The internal keyboard and trackpad initialize and work after booting the dedicated image.
-- Wi-Fi associates successfully with `brcmfmac` after forcing Fedora's split `brcmfmac_wcc` plugin into the initramfs. The BCM4350 firmware does not support SAE, so WPA3-only networks are unsupported; WPA2 and mixed WPA2/WPA3 networks work.
-- The model-specific CS4208 replacement driver produces working internal-speaker and headphone output. Internal microphone capture remains untested.
-- Suspend/resume and subsequent GNOME unlock work after disabling D3cold on the Apple NVMe controller and its parent root port. This may increase power use while suspended.
-- The lid switch, camera, Bluetooth controller, battery, display brightness, NVMe storage, and USB-C hub/charging enumerate on the test machine. Camera capture, Bluetooth pairing, external display, and lid-close policy remain pending.
-- The Bluetooth controller runs without an optional board-specific `BCM.hcd` patch and reports the missing patch in the kernel log. Because the controller enumerates and powers on, no unverified or unredistributable firmware is bundled. Test pairing before treating this as a failure.
-- Keep USB input and Ethernet available when testing a newly built image or kernel.
-
-The driver choices follow the [upstream Apple SPI driver](https://github.com/torvalds/linux/blob/master/drivers/input/keyboard/applespi.c), [Linux Wireless brcmfmac guidance](https://wireless.docs.kernel.org/en/latest/en/users/drivers/brcm80211.html), and Fedora's maintained [brcmfmac-firmware package](https://packages.fedoraproject.org/pkgs/linux-firmware/brcmfmac-firmware/). See [the captured hardware baseline](docs/macbook9-1-baseline.md) for the evidence behind each change.
 
 ## *Battery
 
@@ -91,6 +65,8 @@ An unnecessary power draw on this hardware is [unused Thunderbolt controllers](h
 
 > [!IMPORTANT]
 > **Thunderbolt is intentionally disabled by default to save power.** If you rely on that port on the daily, this image is probably not for you. I hardly use mine, so the multiple watts—and hours—of power savings are worth it.
+
+This disablement applies only to the `silverletter` image.
 
 Thunderbolt can be temporarily enabled via the included GNOME extension - however it's experimental and will be disabled again at suspend/reboot.
 
@@ -127,49 +103,6 @@ sudo bootc status
 ```
 
 If the new deployment does not suit your machine, boot the previous deployment from the boot menu or roll back:
-
-```bash
-sudo bootc rollback
-sudo systemctl reboot
-```
-
-### Test the MacBook9,1 image
-
-Inspect and record any layered packages first. Layering makes the current deployment incompatible with `bootc` image management until the mutation is reset:
-
-```bash
-rpm-ostree status -v
-```
-
-For the test machine captured in this repository, VS Code is layered as the `code` package. Reset mutations, stage the dedicated image without rebooting, remove the two inherited Air arguments from the staged deployment, and inspect everything before restarting:
-
-```bash
-sudo rpm-ostree reset
-sudo bootc switch ghcr.io/OWNER/silverletter-macbook9:testing
-sudo rpm-ostree kargs --delete-if-present='acpi_osi=!Darwin' --delete-if-present='pci=hpbussize=8'
-sudo bootc status
-sudo rpm-ostree status -v
-```
-
-Replace `OWNER` with the GitHub account or organization that published the test
-build. Fork builds can publish without the upstream repository's optional image
-signing secret; production builds are signed when that secret is configured.
-
-Do not use `bootc switch --apply` for the first test. Reboot only after confirming the staged image and arranging a fallback input/network path. After a successful hardware test, VS Code can be restored with:
-
-```bash
-sudo rpm-ostree install code
-```
-
-That creates another pending deployment and therefore requires a later reboot. Alternatively, use the Flatpak or Toolbox version to avoid making the bootc deployment locally derived.
-
-To abandon the staged deployment before rebooting:
-
-```bash
-sudo rpm-ostree cleanup --pending
-```
-
-After booting the test image, use the boot menu to select the retained previous deployment if input or networking fails. From a working deployment, roll back with:
 
 ```bash
 sudo bootc rollback

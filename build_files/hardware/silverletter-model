@@ -1,0 +1,36 @@
+#!/bin/bash
+set -u
+
+DMI_ROOT="${SILVERLETTER_DMI_ROOT:-/sys/class/dmi/id}"
+PRODUCT_NAME_FILE="${DMI_ROOT}/product_name"
+
+if [[ ! -r "$PRODUCT_NAME_FILE" ]]; then
+    printf 'unknown\n'
+    exit 1
+fi
+
+model=$(<"$PRODUCT_NAME_FILE")
+
+case "${1:-identify}" in
+    identify)
+        case "$model" in
+            MacBookAir7,1) printf 'macbookair7\n' ;;
+            MacBook9,1) printf 'macbook9\n' ;;
+            *) printf 'unknown\n' ;;
+        esac
+        ;;
+    require)
+        if [[ $# -ne 2 ]]; then
+            printf 'Usage: %s [identify|require MODEL]\n' "$0" >&2
+            exit 2
+        fi
+        [[ "$model" == "$2" ]]
+        ;;
+    product-name)
+        printf '%s\n' "$model"
+        ;;
+    *)
+        printf 'Usage: %s [identify|require MODEL|product-name]\n' "$0" >&2
+        exit 2
+        ;;
+esac

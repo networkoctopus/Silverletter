@@ -1,5 +1,5 @@
 [Unit]
-Description=Disable d3cold for SATA controller to fix MacBookAir7,1 resume hang
+Description=Apply model-specific storage D3cold suspend workaround
 
 [Service]
 Type=oneshot

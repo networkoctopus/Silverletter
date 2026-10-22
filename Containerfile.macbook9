@@ -1,0 +1,34 @@
+# MacBook9,1 needs the normal Apple/Darwin ACPI path for its SPI top case and
+# has USB-C rather than Thunderbolt. Keep it separate from the MacBookAir7,1
+# image because boot-time kernel arguments cannot be selected by userspace.
+ARG FEDORA_VERSION=44
+ARG HARDWARE_PROFILE=macbook9
+
+FROM scratch AS ctx
+COPY build_files /
+
+FROM ghcr.io/ublue-os/akmods:main-${FEDORA_VERSION} AS akmods
+
+FROM ghcr.io/ublue-os/silverblue-main:${FEDORA_VERSION}
+ARG FEDORA_VERSION
+ARG HARDWARE_PROFILE
+ENV SILVERLETTER_HARDWARE_PROFILE=${HARDWARE_PROFILE}
+
+COPY --from=akmods / /var/tmp/akmods-common
+RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
+    --mount=type=cache,dst=/var/cache \
+    --mount=type=cache,dst=/var/log \
+    --mount=type=tmpfs,dst=/tmp \
+    mkdir -p /var/roothome && \
+    /ctx/10-kmods.sh && \
+    /ctx/15-packages.sh && \
+    /ctx/20-macbook9.sh && \
+    /ctx/30-fixes.sh && \
+    /ctx/35-mactahoe-theme.sh && \
+    /ctx/40-post-deploy-setup.sh && \
+    /ctx/50-updates.sh && \
+    /ctx/90-initramfs.sh && \
+    /ctx/95-hardware-validate.sh && \
+    /ctx/99-cleanup.sh
+
+RUN bootc container lint

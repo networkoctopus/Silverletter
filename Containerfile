@@ -1,5 +1,6 @@
 # Allow build scripts to be referenced without being copied into the final image
 ARG FEDORA_VERSION=44
+ARG HARDWARE_PROFILE=macbookair7
 
 FROM scratch AS ctx
 COPY build_files /
@@ -8,6 +9,8 @@ FROM ghcr.io/ublue-os/akmods:main-${FEDORA_VERSION} AS akmods
 
 FROM ghcr.io/ublue-os/silverblue-main:${FEDORA_VERSION}
 ARG FEDORA_VERSION
+ARG HARDWARE_PROFILE
+ENV SILVERLETTER_HARDWARE_PROFILE=${HARDWARE_PROFILE}
 
 ### KMODS (broadcom-wl + facetimehd)
 COPY --from=akmods / /var/tmp/akmods-common
@@ -25,6 +28,7 @@ RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     /ctx/40-post-deploy-setup.sh && \
     /ctx/50-updates.sh && \
     /ctx/90-initramfs.sh && \
+    /ctx/95-hardware-validate.sh && \
     /ctx/99-cleanup.sh
     
 ### LINTING

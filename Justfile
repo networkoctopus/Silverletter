@@ -117,6 +117,24 @@ build-asahi $target_image=(image_name + "-asahi") $tag=default_tag:
         --tag "${target_image}:${tag}" \
         .
 
+# Build the Intel MacBook9,1 image without MacBookAir7,1-only boot arguments
+# and hardware workarounds.
+[group('Build')]
+build-macbook9 $target_image=(image_name + "-macbook9") $tag=default_tag:
+    #!/usr/bin/env bash
+
+    BUILD_ARGS=()
+    if [[ -z "$(git status -s)" ]]; then
+        BUILD_ARGS+=("--build-arg" "SHA_HEAD_SHORT=$(git rev-parse --short HEAD)")
+    fi
+
+    podman build \
+        "${BUILD_ARGS[@]}" \
+        --pull=newer \
+        --file Containerfile.macbook9 \
+        --tag "${target_image}:${tag}" \
+        .
+
 # Command: _rootful_load_image
 # Description: This script checks if the current user is root or running under sudo. If not, it attempts to resolve the image tag using podman inspect.
 #              If the image is found, it loads it into rootful podman. If the image is not found, it pulls it from the repository.
@@ -309,7 +327,6 @@ spawn-vm rebuild="0" type="qcow2" ram="6G":
       --network-user-mode \
       --vsock=false --pass-ssh-key=false \
       -i ./output/**/*.{{ type }}
-
 
 # Runs shell check on all Bash scripts
 lint:

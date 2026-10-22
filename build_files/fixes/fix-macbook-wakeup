@@ -1,4 +1,9 @@
 #!/bin/bash
+
+if ! /usr/libexec/silverletter-model require MacBookAir7,1; then
+exit 0
+fi
+
 case $1 in
 pre)
 echo 0 | sudo tee /sys/devices/system/cpu/cpu*/online

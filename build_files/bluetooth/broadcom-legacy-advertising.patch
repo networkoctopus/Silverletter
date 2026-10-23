@@ -1,0 +1,24 @@
+From: Silverletter maintainers
+Subject: [PATCH] Bluetooth: strip Broadcom vendor bits from legacy advertising reports
+
+Based on Jose Miguel Ochoa's Apple/Broadcom fix:
+https://github.com/t2linux/linux-t2-patches/blob/main/9002-Bluetooth-hci_event-strip-Broadcom-vendor-bits-from-adv-type.patch
+
+MacBook9,1's UART BCM4350C0 also reports directed advertisements as
+0x11/0x21/0xf1. Linux rejects these and never attempts to reconnect a
+bonded LE mouse. Mask the vendor bits for Broadcom controllers only;
+valid types remain unchanged and invalid low nibbles are still rejected.
+Verified on MacBook9,1 with a Logitech MX Anywhere 3 for Mac.
+
+--- a/net/bluetooth/hci_event.c
++++ b/net/bluetooth/hci_event.c
+@@ -6418,5 +6418,9 @@
+ 		hci_store_wake_reason(hdev, &info->bdaddr, info->bdaddr_type);
+ 
++		/* Broadcom ROM firmware tags legacy reports in reserved bits. */
++		if (hdev->manufacturer == 15 && info->type > LE_ADV_SCAN_RSP)
++			info->type &= 0x0f;
++
+ 		if (info->length <= max_adv_len(hdev)) {
+ 			rssi = info->data[info->length];
+ 			process_adv_report(hdev, info->type, &info->bdaddr,

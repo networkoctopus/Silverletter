@@ -88,6 +88,12 @@ if [[ "$HARDWARE_PROFILE" == "macbook9" ]]; then
     rm -rf /tmp/macbook12-audio-driver
 fi
 
+### ── MacBook9,1 Broadcom Bluetooth reconnect fix ──
+if [[ "$HARDWARE_PROFILE" == "macbook9" ]]; then
+    dnf5 install -y patch elfutils-libelf-devel openssl-devel
+    bash /ctx/bluetooth/build-bluetooth.sh "${KERNEL_VERSION}"
+fi
+
 ### ── mbpfan (fan control for MacBooks) ──
 if [[ "$HARDWARE_PROFILE" == "macbookair7" ]]; then
     pinned_clone \
@@ -106,6 +112,9 @@ if [[ "$HARDWARE_PROFILE" == "macbookair7" ]]; then
 fi
 
 # Remove build-time-only kmod toolchain (gcc/make/binutils cleaned by autoremove)
+if [[ "$HARDWARE_PROFILE" == "macbook9" ]]; then
+    dnf5 remove -y patch elfutils-libelf-devel openssl-devel
+fi
 dnf5 remove -y \
     kernel-devel \
     kernel-devel-matched \

@@ -84,4 +84,11 @@ SILVERLETTER_PCI_ROOT="$test_root/pci" \
 ! grep -q '/ctx/20-power.sh' "$repo_root/Containerfile.macbook9"
 ! grep -q '/ctx/25-thunderbolt-extension.sh' "$repo_root/Containerfile.macbook9"
 
+# The Bluetooth rebuild must refuse other profiles before accessing the
+# toolchain, downloading sources, or installing modules.
+for profile in macbookair7 asahi unknown; do
+    ! SILVERLETTER_HARDWARE_PROFILE="$profile" \
+        bash "$repo_root/build_files/bluetooth/build-bluetooth.sh" invalid-kernel
+done
+
 echo "hardware gating checks passed"

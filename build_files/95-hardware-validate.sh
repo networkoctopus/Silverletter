@@ -12,6 +12,7 @@ systemctl is-enabled --quiet fix-sleep.service
 
 case "$profile" in
     macbookair7)
+        test -z "$(modinfo -k "$kernel_version" -F silverletter_bt_fix bluetooth)"
         rpm -q broadcom-wl
         test -f /usr/lib/modprobe.d/broadcom-wl-blacklist.conf
         test -f /usr/lib/bootc/kargs.d/silverletter.toml
@@ -39,6 +40,10 @@ case "$profile" in
         test "$(modinfo -k "$kernel_version" -n snd_hda_codec_cs420x)" = \
             "/lib/modules/${kernel_version}/updates/snd-hda-codec-cs420x.ko"
         test -f /usr/share/wireplumber/wireplumber.conf.d/51-macbook-cs4208-softvol.conf
+        test "$(modinfo -k "$kernel_version" -n bluetooth)" = \
+            "/lib/modules/${kernel_version}/updates/bluetooth.ko"
+        test "$(modinfo -k "$kernel_version" -F silverletter_bt_fix bluetooth)" = \
+            broadcom-legacy-adv-mask-v1
 
         lsinitrd "$initramfs" > /tmp/silverletter-initramfs-list
         grep -q '/applespi\.ko' /tmp/silverletter-initramfs-list
@@ -46,6 +51,7 @@ case "$profile" in
         grep -q '/brcmfmac\.ko' /tmp/silverletter-initramfs-list
         grep -q '/brcmfmac-wcc\.ko' /tmp/silverletter-initramfs-list
         grep -q '/updates/snd-hda-codec-cs420x\.ko' /tmp/silverletter-initramfs-list
+        grep -q '/updates/bluetooth\.ko' /tmp/silverletter-initramfs-list
         rm -f /tmp/silverletter-initramfs-list
         ;;
     *)

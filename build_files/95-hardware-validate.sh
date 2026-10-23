@@ -52,6 +52,16 @@ case "$profile" in
         grep -q '/brcmfmac-wcc\.ko' /tmp/silverletter-initramfs-list
         grep -q '/updates/snd-hda-codec-cs420x\.ko' /tmp/silverletter-initramfs-list
         grep -q '/updates/bluetooth\.ko' /tmp/silverletter-initramfs-list
+        if [[ "$(modinfo -k "$kernel_version" -F filename btrfs)" != '(builtin)' ]]; then
+            grep -q '/btrfs\.ko' /tmp/silverletter-initramfs-list
+        fi
+        grep -q '/nvme\.ko' /tmp/silverletter-initramfs-list
+        grep -q '/i915\.ko' /tmp/silverletter-initramfs-list
+        grep -q '/firmware/i915/skl_dmc_ver1_27\.bin' /tmp/silverletter-initramfs-list
+        if grep -Eq '/firmware/(nvidia|amdgpu|radeon|xe)/|/(amdgpu|radeon|nouveau|nvidia|xe|qla2xxx|qla4xxx|lpfc|mpt3sas|mpt2sas)\.ko' /tmp/silverletter-initramfs-list; then
+            echo "Unexpected GPU or storage contents in MacBook9,1 initramfs" >&2
+            exit 1
+        fi
         rm -f /tmp/silverletter-initramfs-list
         ;;
     *)

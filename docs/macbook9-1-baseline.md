@@ -25,7 +25,7 @@ Captured 2026-10-19 on the physical 2016 12-inch Retina MacBook before changing 
 | Audio | CS4208 subsystem `106b:6500` enumerated under `snd_hda_intel`; PipeWire selected the unmuted analog sink and ALSA exposed the speaker path, but the internal speakers remained silent. Mainline does not initialize this model's digital speaker path and external amplifier. | Build a pinned MacBook9,1/10,1 CS4208 replacement for the exact image kernel and install its WirePlumber software-volume rule. | Module selection and initramfs contents are build-validated; internal-speaker and headphone output work on physical hardware. Microphone capture remains pending. |
 | Camera | PCI `14e4:1570` bound to `facetimehd`; firmware loaded and full memory verification succeeded. | Retain existing camera build. | Driver/firmware initialization verified; video capture pending. |
 | Display and brightness | Intel HD 515 bound to `i915`; ACPI video input and backlight infrastructure enumerated. | None. | Enumeration only; brightness keys and external display pending. |
-| Storage/battery | Apple S3X NVMe bound to `nvme`; battery capacity/status and AC adapter were reported. | Keep the full MacBook9,1 initramfs and prevent the controller plus parent root port from entering D3cold. | Root storage, charging, deep suspend, resume, and post-resume unlock work. Suspend power use may be higher with D3cold disabled. |
+| Storage/battery | Apple S3X NVMe bound to `nvme`; battery capacity/status and AC adapter were reported. | Retain NVMe and Btrfs in the trimmed MacBook9,1 initramfs and prevent the controller plus parent root port from entering D3cold. | Root storage, charging, deep suspend, resume, and post-resume unlock work. Suspend power use may be higher with D3cold disabled. |
 
 ## Upstream references
 
@@ -35,3 +35,13 @@ Captured 2026-10-19 on the physical 2016 12-inch Retina MacBook before changing 
 - [Linux Wireless brcmfmac documentation](https://wireless.docs.kernel.org/en/latest/en/users/drivers/brcm80211.html) describes the in-tree full-MAC driver and firmware/NVRAM behavior.
 - Fedora 44's maintained [`brcmfmac-firmware` package](https://packages.fedoraproject.org/pkgs/linux-firmware/brcmfmac-firmware/fedora-44-updates.html) contains the BCM4350 PCIe firmware used successfully in the live probe.
 - [`logind.conf`](https://www.freedesktop.org/software/systemd/man/latest/logind.conf.html) documents lid-close behavior, docked/external-display handling, and desktop-environment inhibitor ownership.
+
+## Initramfs trimming
+
+The MacBook9,1 profile now follows the Air's exclusions for enterprise storage
+drivers, LVM, MD RAID, NVDIMM, QEMU, virtiofs, FIPS, and encryption/token support.
+It also excludes unused NVIDIA, AMD, Radeon, and Xe graphics drivers and firmware.
+Unlike the Air profile, it retains Btrfs and i915 firmware, including Skylake DMC
+firmware. The Apple SPI stack, Broadcom Wi-Fi, and patched Bluetooth/audio modules
+remain explicitly included. This profile does not support encrypted, LVM, or
+MD RAID root installations. Boot-time savings still require physical reboot testing.

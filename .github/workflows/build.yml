@@ -28,6 +28,11 @@ on:
         required: true
         default: false
         type: boolean
+      cs4208_resume_test:
+        description: "Experimental CS4208 deep-resume patch (macbook9 only; use a separate tag)"
+        required: true
+        default: false
+        type: boolean
       tag:
         description: "Container tag for a manual build"
         required: true
@@ -65,6 +70,20 @@ jobs:
       id-token: write
 
     steps:
+      - name: Guard experimental audio publication
+        if: github.event_name == 'workflow_dispatch' && inputs.cs4208_resume_test
+        env:
+          SELECTED_VARIANT: ${{ inputs.variant }}
+          SELECTED_TAG: ${{ inputs.tag }}
+        run: |
+          test "$SELECTED_VARIANT" = macbook9
+          case "$SELECTED_TAG" in
+            latest|testing|stable|'')
+              echo "Use a separate tag for the experimental audio image" >&2
+              exit 1
+              ;;
+          esac
+
       - name: Prepare environment
         run: |
           # Lowercase the image uri
@@ -150,6 +169,8 @@ jobs:
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
           oci: false
+          build-args: |
+            CS4208_RESUME_TEST=${{ github.event_name == 'workflow_dispatch' && matrix.variant == 'macbook9' && inputs.cs4208_resume_test && '1' || '0' }}
 
       # Rechunk is a script that we use on Universal Blue to make sure there isnt a single huge layer when your image gets published.
       # This does not make your image faster to download, just provides better resumability and fixes a few errors.

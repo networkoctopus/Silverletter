@@ -77,10 +77,23 @@ if [[ "$HARDWARE_PROFILE" == "macbook9" ]]; then
         4cdfcdbac2db3f300cc45d9679cfd21df6590a8a \
         /tmp/macbook12-audio-driver
     cd /tmp/macbook12-audio-driver
+    # Opt-in candidate only: hardware validation after deep sleep is pending.
+    if [[ "${SILVERLETTER_CS4208_RESUME_TEST:-0}" == 1 ]]; then
+        dnf5 install -y patch
+        patch --batch --forward --fuzz=0 -p1 < /ctx/audio/cs4208-resume-order.patch
+        printf '\nMODULE_INFO(silverletter_audio_fix, "cs4208-resume-order-v1");\n' \
+            >> patch_cirrus/cs420x.c
+        printf '\nMODULE_INFO(silverletter_audio_fix, "cs4208-resume-order-v1");\n' \
+            >> patch_cirrus/patch_cirrus.c
+    fi
     MACBOOK12_AUDIO_KERNEL_CACHE=/var/cache/macbook12-audio-driver \
         ./prepare.cirrus.driver.sh "${KERNEL_VERSION}"
     make KERNELRELEASE="${KERNEL_VERSION}"
     make KERNELRELEASE="${KERNEL_VERSION}" install
+    if [[ "${SILVERLETTER_CS4208_RESUME_TEST:-0}" == 1 ]]; then
+        test "$(modinfo -k "$KERNEL_VERSION" -F silverletter_audio_fix snd_hda_codec_cs420x)" = \
+            cs4208-resume-order-v1
+    fi
     install -Dm644 \
         contrib/wireplumber/wireplumber.conf.d/51-macbook-cs4208-softvol.conf \
         /usr/share/wireplumber/wireplumber.conf.d/51-macbook-cs4208-softvol.conf

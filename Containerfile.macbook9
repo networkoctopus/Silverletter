@@ -12,7 +12,9 @@ FROM ghcr.io/ublue-os/akmods:main-${FEDORA_VERSION} AS akmods
 FROM ghcr.io/ublue-os/silverblue-main:${FEDORA_VERSION}
 ARG FEDORA_VERSION
 ARG HARDWARE_PROFILE
+ARG CS4208_RESUME_TEST=0
 ENV SILVERLETTER_HARDWARE_PROFILE=${HARDWARE_PROFILE}
+ENV SILVERLETTER_CS4208_RESUME_TEST=${CS4208_RESUME_TEST}
 
 COPY --from=akmods / /var/tmp/akmods-common
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \

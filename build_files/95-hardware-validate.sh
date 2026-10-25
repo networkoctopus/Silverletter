@@ -40,6 +40,12 @@ case "$profile" in
         test "$(modinfo -k "$kernel_version" -n snd_hda_codec_cs420x)" = \
             "/lib/modules/${kernel_version}/updates/snd-hda-codec-cs420x.ko"
         test -f /usr/share/wireplumber/wireplumber.conf.d/51-macbook-cs4208-softvol.conf
+        if [[ "${SILVERLETTER_CS4208_RESUME_TEST:-0}" == 1 ]]; then
+            test "$(modinfo -k "$kernel_version" -F silverletter_audio_fix snd_hda_codec_cs420x)" = \
+                cs4208-resume-order-v1
+        else
+            test -z "$(modinfo -k "$kernel_version" -F silverletter_audio_fix snd_hda_codec_cs420x)"
+        fi
         test "$(modinfo -k "$kernel_version" -n bluetooth)" = \
             "/lib/modules/${kernel_version}/updates/bluetooth.ko"
         test "$(modinfo -k "$kernel_version" -F silverletter_bt_fix bluetooth)" = \

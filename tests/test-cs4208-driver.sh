@@ -67,6 +67,28 @@ grep -q 'api.acp.auto-profile = false' "$policy"
 grep -q 'api.acp.auto-port = false' "$policy"
 grep -q 'device.profile-set = "/usr/share/macbook91-cs4208/acp/macbook91-cs4208.conf"' "$policy"
 grep -q '^channel-map = front-left,front-right,rear-left,rear-right' "$module/contrib/acp/macbook91-cs4208.conf"
+# The installed profile differs only in dropping the path's .conf suffix:
+# PipeWire's pa_alsa_path_set_new() adds that suffix itself. Validate the
+# resolved target and the stock translated description/type lookup key.
+mkdir "$work/acp"
+cp "$module/contrib/acp/"*.conf "$work/acp/"
+patch --batch --forward --fuzz=0 -p1 -d "$work/acp" \
+    < "$repo_root/build_files/audio/acp-path-reference.patch"
+refuses patch --batch --forward --fuzz=0 --dry-run -p1 -d "$work/acp" \
+    < "$repo_root/build_files/audio/acp-path-reference.patch"
+path=$(awk '
+    $0 == "[Mapping analog-surround-40]" { speaker=1; next }
+    /^\[/ { speaker=0 }
+    speaker && $1 == "paths-output" { print $3 }
+' "$work/acp/macbook91-cs4208.conf")
+[[ "$path" == /usr/share/macbook91-cs4208/acp/macbook91-output-speaker ]]
+test -f "$work/acp/${path##*/}.conf"
+grep -Fxq 'description-key = analog-output-speaker' "$work/acp/${path##*/}.conf"
+grep -Fxq 'priority = 100' "$work/acp/${path##*/}.conf"
+cmp "$module/contrib/acp/macbook91-output-speaker.conf" "$work/acp/macbook91-output-speaker.conf"
+patch --batch --reverse --fuzz=0 -p1 -d "$work/acp" \
+    < "$repo_root/build_files/audio/acp-path-reference.patch"
+cmp "$module/contrib/acp/macbook91-cs4208.conf" "$work/acp/macbook91-cs4208.conf"
 grep -Fq 'bash /ctx/audio/build-weegee.sh /tmp/macbook91-cs4208 "$KERNEL_VERSION"' "$repo_root/build_files/10-kmods.sh"
 for file in Containerfile Containerfile.macbook9 .github/workflows/build.yml \
     build_files/10-kmods.sh build_files/95-hardware-validate.sh build_files/audio/build-weegee.sh; do

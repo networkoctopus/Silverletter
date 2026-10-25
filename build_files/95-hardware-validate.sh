@@ -47,6 +47,8 @@ case "$profile" in
         test -s /usr/share/wireplumber/wireplumber.conf.d/51-macbook91-cs4208.conf
         test -s /usr/share/macbook91-cs4208/acp/macbook91-cs4208.conf
         test -s /usr/share/macbook91-cs4208/acp/macbook91-output-speaker.conf
+        grep -Fxq 'paths-output = /usr/share/macbook91-cs4208/acp/macbook91-output-speaker' \
+            /usr/share/macbook91-cs4208/acp/macbook91-cs4208.conf
         test -s /usr/share/licenses/macbook91-cs4208/LICENSE
         test "$(modinfo -k "$kernel_version" -n bluetooth)" = \
             "/lib/modules/${kernel_version}/updates/bluetooth.ko"

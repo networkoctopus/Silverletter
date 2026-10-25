@@ -59,6 +59,11 @@ install -Dm644 "$module_tree/contrib/wireplumber/51-macbook91-cs4208.conf" \
 for file in macbook91-cs4208.conf macbook91-output-speaker.conf; do
     install -Dm644 "$module_tree/contrib/acp/$file" "/usr/share/macbook91-cs4208/acp/$file"
 done
+# ACP appends .conf to paths-output, including absolute paths. Supplying the
+# suffix twice leaves an empty route with a raw label, unknown type and priority
+# zero instead of loading the speaker path's translated label and mixer policy.
+patch --batch --forward --fuzz=0 -p1 -d /usr/share/macbook91-cs4208/acp \
+    < "$script_dir/acp-path-reference.patch"
 # Retain licence notices for redistributed module and policy sources.
 install -d /usr/share/licenses/macbook91-cs4208
 cp -a "$source_tree/LICENSES/." /usr/share/licenses/macbook91-cs4208/

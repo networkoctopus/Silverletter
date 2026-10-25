@@ -21,6 +21,25 @@ volume, stereo-to-four-channel duplication, and a route that remains available
 when headphones are inserted. The driver handles jack routing itself. The old
 stereo soft-volume policy is not installed alongside these files.
 
+Silverletter applies one ACP profile correction: `paths-output` must reference
+the speaker path **without** its `.conf` suffix, because PipeWire appends it.
+The upstream suffixed reference made PipeWire attempt `.conf.conf`; on our host
+the resulting empty route displayed `macbook91-output-speaker`, type Unknown,
+priority 0. The corrected reference loads the upstream path's stock translated
+`Speakers` description, speaker type and priority 100. The path contents and
+kernel driver are unchanged. Because the previously skipped path also contains
+hardware mixer settings, retest low-volume playback, attenuation, headphone
+hotplug and suspend/resume after deploying this correction; this is not merely
+a cosmetic node-name override.
+
+Default output selection is left to WirePlumber, which stores user selections
+and history. This driver's internal node is named `analog-surround-40` rather
+than the old driver's `analog-stereo`; an old saved selection may therefore be
+unavailable and another remembered output may win on first boot. Selecting the
+internal output in Sound Settings saves the new preference. Do not force an
+internal default at every login, clear all user state, disable network outputs,
+or embed any soundbar/network identifiers in the image to work around that.
+
 The upstream maintainer reports repeated successful deep sleeps on this model.
 Those results are **not proof on our host**. Our earlier unsuccessful Boot Camp
 replay also wrote the converter channel-count register, so that register alone

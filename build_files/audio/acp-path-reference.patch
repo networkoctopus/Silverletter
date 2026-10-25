@@ -1,0 +1,11 @@
+--- a/macbook91-cs4208.conf
++++ b/macbook91-cs4208.conf
+@@ -65,7 +65,7 @@
+ description = Internal Speakers and Headphones
+ device-strings = surround40:%f
+ channel-map = front-left,front-right,rear-left,rear-right
+-paths-output = /usr/share/macbook91-cs4208/acp/macbook91-output-speaker.conf
++paths-output = /usr/share/macbook91-cs4208/acp/macbook91-output-speaker
+ priority = 100
+ direction = output
+ 

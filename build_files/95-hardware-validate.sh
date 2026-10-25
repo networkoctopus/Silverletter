@@ -39,13 +39,15 @@ case "$profile" in
         compgen -G '/usr/lib/firmware/brcm/brcmfmac4350c2-pcie.bin*'
         test "$(modinfo -k "$kernel_version" -n snd_hda_codec_cs420x)" = \
             "/lib/modules/${kernel_version}/updates/snd-hda-codec-cs420x.ko"
-        test -f /usr/share/wireplumber/wireplumber.conf.d/51-macbook-cs4208-softvol.conf
-        if [[ "${SILVERLETTER_CS4208_RESUME_TEST:-0}" == 1 ]]; then
-            test "$(modinfo -k "$kernel_version" -F silverletter_audio_fix snd_hda_codec_cs420x)" = \
-                cs4208-resume-order-v1
-        else
-            test -z "$(modinfo -k "$kernel_version" -F silverletter_audio_fix snd_hda_codec_cs420x)"
-        fi
+        test "$(modinfo -k "$kernel_version" -F silverletter_audio_fix snd_hda_codec_cs420x)" = \
+            weegee-20261021.01-v1
+        test "$(modinfo -k "$kernel_version" -F silverletter_audio_source snd_hda_codec_cs420x)" = \
+            0c7cc3c7c05d97911fd400af1d48a6ebb4b55570
+        test ! -e /usr/share/wireplumber/wireplumber.conf.d/51-macbook-cs4208-softvol.conf
+        test -s /usr/share/wireplumber/wireplumber.conf.d/51-macbook91-cs4208.conf
+        test -s /usr/share/macbook91-cs4208/acp/macbook91-cs4208.conf
+        test -s /usr/share/macbook91-cs4208/acp/macbook91-output-speaker.conf
+        test -s /usr/share/licenses/macbook91-cs4208/LICENSE
         test "$(modinfo -k "$kernel_version" -n bluetooth)" = \
             "/lib/modules/${kernel_version}/updates/bluetooth.ko"
         test "$(modinfo -k "$kernel_version" -F silverletter_bt_fix bluetooth)" = \

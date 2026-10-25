@@ -72,33 +72,13 @@ if [[ "$HARDWARE_PROFILE" == "macbook9" ]]; then
     # Mainline detects the codec but does not initialize the 12-inch MacBook's
     # digital speaker path and external amplifier. Build the model-specific
     # replacement for the exact image kernel; do not carry DKMS into the image.
+    dnf5 install -y patch elfutils-libelf-devel openssl-devel
     pinned_clone \
-        https://github.com/leifliddy/macbook12-audio-driver.git \
-        4cdfcdbac2db3f300cc45d9679cfd21df6590a8a \
-        /tmp/macbook12-audio-driver
-    cd /tmp/macbook12-audio-driver
-    # Opt-in candidate only: hardware validation after deep sleep is pending.
-    if [[ "${SILVERLETTER_CS4208_RESUME_TEST:-0}" == 1 ]]; then
-        dnf5 install -y patch
-        patch --batch --forward --fuzz=0 -p1 < /ctx/audio/cs4208-resume-order.patch
-        printf '\nMODULE_INFO(silverletter_audio_fix, "cs4208-resume-order-v1");\n' \
-            >> patch_cirrus/cs420x.c
-        printf '\nMODULE_INFO(silverletter_audio_fix, "cs4208-resume-order-v1");\n' \
-            >> patch_cirrus/patch_cirrus.c
-    fi
-    MACBOOK12_AUDIO_KERNEL_CACHE=/var/cache/macbook12-audio-driver \
-        ./prepare.cirrus.driver.sh "${KERNEL_VERSION}"
-    make KERNELRELEASE="${KERNEL_VERSION}"
-    make KERNELRELEASE="${KERNEL_VERSION}" install
-    if [[ "${SILVERLETTER_CS4208_RESUME_TEST:-0}" == 1 ]]; then
-        test "$(modinfo -k "$KERNEL_VERSION" -F silverletter_audio_fix snd_hda_codec_cs420x)" = \
-            cs4208-resume-order-v1
-    fi
-    install -Dm644 \
-        contrib/wireplumber/wireplumber.conf.d/51-macbook-cs4208-softvol.conf \
-        /usr/share/wireplumber/wireplumber.conf.d/51-macbook-cs4208-softvol.conf
-    cd /
-    rm -rf /tmp/macbook12-audio-driver
+        https://github.com/Weegee/macbook91-cs4208-pub.git \
+        0c7cc3c7c05d97911fd400af1d48a6ebb4b55570 \
+        /tmp/macbook91-cs4208
+    bash /ctx/audio/build-weegee.sh /tmp/macbook91-cs4208 "$KERNEL_VERSION"
+    rm -rf /tmp/macbook91-cs4208
 fi
 
 ### ── MacBook9,1 Broadcom Bluetooth reconnect fix ──
